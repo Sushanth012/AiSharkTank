@@ -40,7 +40,8 @@ function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {
     task: "Generate an AI Shark Tank investor panel report.",
     constraints: [
       "Use a college-graduate founder audience: direct, professional, encouraging, and specific.",
-      "Include three investors with distinct investment philosophies.",
+      "Include five investor perspectives with the named lenses: profit discipline, product and execution, founder and go-to-market, brand and community, customer delight and scale.",
+      "Do not claim that any real investor reviewed the pitch. Names and public personas must not be used in generated output; return original agent names for production.",
       "Use recommendation values only: Invest, Pass, Invest with Conditions.",
       "Scores must be integers from 0 to 100.",
       "Valuation confidence should usually be Low or Medium for early-stage companies."
@@ -61,10 +62,15 @@ function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {
       investorPanel: [
         {
           name: "string",
+          shortName: "string",
+          initials: "string",
+          accent: "blue | coral | gold | green | violet",
+          lens: "string",
           focus: "string",
           decision: "Invest | Pass | Invest with Conditions",
           score: "number",
           thesis: "string",
+          signatureAdvice: "string",
           questions: ["string"]
         }
       ],

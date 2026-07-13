@@ -511,6 +511,56 @@ button {
   gap: 18px;
 }
 
+.report-hero {
+  padding: clamp(22px, 4vw, 34px);
+  color: #f9fbfc;
+  background: radial-gradient(circle at top right, rgba(38, 150, 160, 0.36), transparent 34%), #101b24;
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.report-hero-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.report-hero h1 { margin: 0; font-size: clamp(32px, 4vw, 50px); line-height: 1; }
+.report-hero p:not(.eyebrow) { max-width: 680px; margin: 14px 0 0; color: rgba(255, 255, 255, 0.72); line-height: 1.55; }
+.report-hero .eyebrow { color: #91e5e0; background: rgba(145, 229, 224, 0.1); border-color: rgba(145, 229, 224, 0.18); }
+
+.report-score { display: grid; width: 112px; min-width: 112px; aspect-ratio: 1; place-items: center; align-content: center; border: 1px solid rgba(145, 229, 224, 0.38); border-radius: 50%; background: rgba(8, 14, 19, 0.32); }
+.report-score strong { font-size: 37px; line-height: 1; }
+.report-score span { margin-top: 5px; color: rgba(255, 255, 255, 0.66); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+
+.panel-vote-strip { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.13); }
+.panel-vote-strip span { display: block; color: rgba(255, 255, 255, 0.62); font-size: 12px; }
+.panel-vote-strip strong { display: block; margin-top: 4px; font-size: 15px; }
+.vote-avatars { display: flex; padding-left: 10px; }
+
+.investor-avatar { display: grid; width: 35px; height: 35px; place-items: center; margin-left: -10px; border: 2px solid #101b24; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 850; }
+.investor-avatar.large { width: 48px; height: 48px; margin: 0; border: 0; font-size: 13px; }
+.investor-avatar.blue { background: #2777aa; }.investor-avatar.coral { background: #d96455; }.investor-avatar.gold { background: #b77b20; }.investor-avatar.green { background: #24845a; }.investor-avatar.violet { background: #7456a8; }
+
+.investor-panel-section { padding: 12px 0 2px; }
+.panel-section-title { margin-bottom: 16px; }
+.panel-section-title p:not(.eyebrow) { max-width: 650px; }
+.shark-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.shark-card { padding: 20px; border: 1px solid var(--line); border-top: 4px solid var(--shark-accent); border-radius: 8px; background: #fff; box-shadow: 0 14px 36px rgba(17, 19, 24, 0.06); }
+.shark-card.blue { --shark-accent: #2777aa; }.shark-card.coral { --shark-accent: #d96455; }.shark-card.gold { --shark-accent: #b77b20; }.shark-card.green { --shark-accent: #24845a; }.shark-card.violet { --shark-accent: #7456a8; }
+.shark-card:last-child { grid-column: 1 / -1; }
+.shark-card-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.shark-card h3 { margin: 2px 0; font-size: 18px; }
+.shark-card-top p { margin: 0; color: var(--muted); font-size: 13px; }
+.shark-lens { color: var(--shark-accent) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.shark-score { display: grid; min-width: 42px; text-align: right; }.shark-score strong { font-size: 22px; }.shark-score span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.shark-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 17px 0 12px; }.shark-verdict > span { color: var(--muted); font-size: 12px; }
+.shark-thesis { margin: 0; color: #343e40; line-height: 1.55; }
+.signature-advice { display: flex; gap: 8px; margin: 16px 0; padding: 12px; color: #35585a; background: #edf7f6; border-radius: 6px; }.signature-advice svg { flex: none; margin-top: 3px; color: var(--accent-strong); }.signature-advice p { margin: 0; color: inherit; font-size: 13px; line-height: 1.5; }
+.shark-questions { padding-top: 14px; border-top: 1px solid var(--line); }.shark-questions > p { display: flex; align-items: center; gap: 7px; margin: 0 0 9px; color: #364042; font-size: 13px; font-weight: 780; }.shark-questions > p svg { color: var(--shark-accent); }
+.memo-heading { display: flex; align-items: center; gap: 9px; }.memo-heading svg { color: var(--gold); }.memo-heading h3 { margin: 0 0 8px; }
+.recommendation-link { display: flex; align-items: center; gap: 3px; margin-top: 18px; color: var(--accent-strong); font-size: 13px; font-weight: 780; }
+
 .score-row {
   display: grid;
   gap: 12px;
@@ -635,7 +685,8 @@ button {
 
   .grid.two,
   .grid.three,
-  .form-grid {
+  .form-grid,
+  .shark-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -658,4 +709,8 @@ button {
   .mini-grid {
     grid-template-columns: 1fr;
   }
+
+  .report-hero-top { flex-direction: column; }
+  .report-score { width: 96px; min-width: 96px; }
+  .shark-card:last-child { grid-column: auto; }
 }

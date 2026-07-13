@@ -64,39 +64,93 @@ export const demoReport: PitchReport = {
   ],
   investorPanel: [
     {
-      name: "Dana Brooks",
-      focus: "Profit discipline",
+      name: "Kevin O'Leary",
+      shortName: "Mr. Wonderful",
+      initials: "KO",
+      accent: "gold",
+      lens: "Profit discipline",
+      focus: "Investment lens inspired by Kevin O'Leary",
       decision: "Invest with Conditions",
       score: 81,
       thesis:
         "The margin path can work if take rate and campus operations stay lean, but I need one complete season of unit economics.",
+      signatureAdvice:
+        "Show the exact path from campus GMV to cash in the bank before asking me to fund expansion.",
       questions: [
         "What is your expected GMV per campus during move-out week?",
         "How will you keep acquisition costs from rising after the first ambassador cohort?"
       ]
     },
     {
-      name: "Priya Raman",
-      focus: "Technology and defensibility",
+      name: "Mark Cuban",
+      shortName: "The Operator",
+      initials: "MC",
+      accent: "blue",
+      lens: "Product and execution",
+      focus: "Investment lens inspired by Mark Cuban",
       decision: "Pass",
       score: 72,
       thesis:
         "The product solves a real problem, but the current pitch does not yet show a durable technical moat.",
+      signatureAdvice:
+        "Prove that the product gets better and cheaper to run every time a campus joins.",
       questions: [
         "What data advantage compounds after each campus launch?",
         "Why would Facebook Marketplace or a university app not copy the core flow?"
       ]
     },
     {
-      name: "Marcus Hill",
-      focus: "Brand and go-to-market",
+      name: "Barbara Corcoran",
+      shortName: "The Storyteller",
+      initials: "BC",
+      accent: "coral",
+      lens: "Founder and go-to-market",
+      focus: "Investment lens inspired by Barbara Corcoran",
       decision: "Invest",
       score: 89,
       thesis:
         "The student positioning is crisp and the timing creates natural urgency. This could spread quickly with the right campus playbook.",
+      signatureAdvice:
+        "Lead with the student who needs this tomorrow, then make every number support that story.",
       questions: [
         "Which campus roles become your highest-converting ambassadors?",
         "What is the brand promise students repeat to their friends?"
+      ]
+    },
+    {
+      name: "Daymond John",
+      shortName: "The Brand Builder",
+      initials: "DJ",
+      accent: "green",
+      lens: "Brand and community",
+      focus: "Investment lens inspired by Daymond John",
+      decision: "Invest",
+      score: 86,
+      thesis:
+        "CampusCart has the beginnings of a brand students can identify with, especially when the message stays local and useful rather than generic.",
+      signatureAdvice:
+        "Build campus identity into the product so students feel they are joining something, not downloading another marketplace.",
+      questions: [
+        "What is the one visual cue that makes CampusCart recognizable in a dorm hallway?",
+        "How will ambassadors make the brand feel native on each campus?"
+      ]
+    },
+    {
+      name: "Lori Greiner",
+      shortName: "The Customer Advocate",
+      initials: "LG",
+      accent: "violet",
+      lens: "Customer delight and scale",
+      focus: "Investment lens inspired by Lori Greiner",
+      decision: "Invest with Conditions",
+      score: 80,
+      thesis:
+        "The idea is immediately understandable, but the pitch needs to demonstrate a smoother buyer and seller experience before scaling the launch plan.",
+      signatureAdvice:
+        "Make the first transaction feel effortless, because that is what turns a clever idea into a habit.",
+      questions: [
+        "What happens when a student cannot find a buyer before move-out day?",
+        "Which part of the first transaction can become a delightful signature moment?"
       ]
     }
   ],

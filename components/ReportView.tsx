@@ -1,32 +1,40 @@
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, ChevronRight, CircleDollarSign, MessageCircleQuestion, Sparkles } from "lucide-react";
 import type { PitchReport } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ReportActions } from "@/components/ReportActions";
 
 export function ReportView({ report }: { report: PitchReport }) {
+  const investVotes = report.investorPanel.filter((investor) => investor.decision === "Invest").length;
+  const conditionVotes = report.investorPanel.filter(
+    (investor) => investor.decision === "Invest with Conditions"
+  ).length;
+
   return (
     <div className="report-layout">
       <div className="grid">
-        <section className="panel form-card">
-          <div className="section-title">
+        <section className="panel report-hero">
+          <div className="report-hero-top">
             <div>
-              <p className="eyebrow">Investment report</p>
+              <p className="eyebrow">Panel decision</p>
               <h1>{report.startupName}</h1>
               <p>{report.executiveSummary}</p>
             </div>
+            <div className="report-score">
+              <strong>{report.overallScore}</strong>
+              <span>Panel score</span>
+            </div>
           </div>
-          <div className="grid three">
-            <div className="card">
-              <h3>{report.overallScore}</h3>
-              <p>Overall score</p>
+          <div className="panel-vote-strip">
+            <div>
+              <span>Panel votes</span>
+              <strong>{investVotes} invest · {conditionVotes} conditional</strong>
             </div>
-            <div className="card">
-              <h3>{report.businessScore}</h3>
-              <p>Business score</p>
-            </div>
-            <div className="card">
-              <h3>{report.deliveryScore}</h3>
-              <p>Delivery score</p>
+            <div className="vote-avatars" aria-label="Investor panel">
+              {report.investorPanel.map((investor) => (
+                <span className={`investor-avatar ${investor.accent}`} key={investor.name} title={investor.name}>
+                  {investor.initials}
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -68,31 +76,53 @@ export function ReportView({ report }: { report: PitchReport }) {
           </section>
         </div>
 
-        <section className="card">
-          <h3>Investor panel</h3>
-          <div className="grid">
+        <section className="investor-panel-section">
+          <div className="section-title panel-section-title">
+            <div>
+              <p className="eyebrow">Five investor lenses</p>
+              <h2>Inside the shark panel</h2>
+              <p>Each verdict uses a distinct investing lens. These are practice perspectives inspired by public investor styles, not endorsements or real investor reviews.</p>
+            </div>
+          </div>
+          <div className="shark-grid">
             {report.investorPanel.map((investor) => (
-              <article className="investor" key={investor.name}>
-                <div className="investor-head">
+              <article className={`shark-card ${investor.accent}`} key={investor.name}>
+                <div className="shark-card-top">
+                  <div className={`investor-avatar large ${investor.accent}`}>{investor.initials}</div>
                   <div>
-                    <strong>{investor.name}</strong>
-                    <p>{investor.focus}</p>
+                    <p className="shark-lens">{investor.lens}</p>
+                    <h3>{investor.name}</h3>
+                    <p>{investor.shortName}</p>
                   </div>
-                  <StatusBadge decision={investor.decision} />
+                  <div className="shark-score">
+                    <strong>{investor.score}</strong>
+                    <span>score</span>
+                  </div>
                 </div>
-                <p>{investor.thesis}</p>
-                <ul className="list">
-                  {investor.questions.map((question) => (
-                    <li key={question}>{question}</li>
-                  ))}
-                </ul>
+                <div className="shark-verdict">
+                  <StatusBadge decision={investor.decision} />
+                  <span>{investor.focus}</span>
+                </div>
+                <p className="shark-thesis">{investor.thesis}</p>
+                <div className="signature-advice">
+                  <Sparkles size={15} aria-hidden="true" />
+                  <p>{investor.signatureAdvice}</p>
+                </div>
+                <div className="shark-questions">
+                  <p><MessageCircleQuestion size={15} aria-hidden="true" /> Questions to answer</p>
+                  <ul className="list">
+                    {investor.questions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                </div>
               </article>
             ))}
           </div>
         </section>
 
         <section className="card">
-          <h3>Final investment memo</h3>
+          <div className="memo-heading"><CircleDollarSign size={20} aria-hidden="true" /><h3>Final investment memo</h3></div>
           <p>{report.finalMemo}</p>
         </section>
       </div>
@@ -102,6 +132,7 @@ export function ReportView({ report }: { report: PitchReport }) {
           <StatusBadge decision={report.recommendation} />
           <h3 style={{ marginTop: 12 }}>Panel recommendation</h3>
           <p>{report.recommendation}</p>
+          <div className="recommendation-link">Read the investor verdicts <ChevronRight size={15} aria-hidden="true" /></div>
         </section>
         <section className="card">
           <h3>Valuation range</h3>

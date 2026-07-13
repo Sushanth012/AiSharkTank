@@ -23,10 +23,15 @@ export type Score = {
 
 export type InvestorReview = {
   name: string;
+  shortName: string;
+  initials: string;
+  accent: "blue" | "coral" | "gold" | "green" | "violet";
+  lens: string;
   focus: string;
   decision: InvestorDecision;
   score: number;
   thesis: string;
+  signatureAdvice: string;
   questions: string[];
 };
 
