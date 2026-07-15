@@ -1,4 +1,4 @@
-export const MAX_VIDEO_BYTES = Number(process.env.MAX_VIDEO_BYTES ?? 262_144_000);
+export const MAX_VIDEO_BYTES = Number(process.env.MAX_VIDEO_BYTES ?? 25_165_824);
 export const MAX_DECK_BYTES = Number(process.env.MAX_DECK_BYTES ?? 52_428_800);
 
 export const isSupabaseConfigured =

@@ -13,9 +13,11 @@
   "dependencies": {
     "@supabase/ssr": "0.12.0",
     "@supabase/supabase-js": "2.110.0",
+    "jszip": "3.10.1",
     "lucide-react": "1.23.0",
     "next": "16.2.10",
     "openai": "6.45.0",
+    "pdfjs-dist": "5.4.149",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "stripe": "22.3.1",

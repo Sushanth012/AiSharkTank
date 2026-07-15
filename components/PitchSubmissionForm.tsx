@@ -1,16 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileUp, Send } from "lucide-react";
 import { MAX_DECK_BYTES, MAX_VIDEO_BYTES, formatBytes } from "@/lib/config";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { pollPitchJob } from "@/lib/jobs/polling";
 import type { StartupProfile } from "@/lib/types";
 
 export function PitchSubmissionForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
+  const pollingController = useRef<AbortController | null>(null);
+
+  useEffect(() => () => pollingController.current?.abort(), []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +47,9 @@ export function PitchSubmissionForm() {
     }
 
     setLoading(true);
+    setPhase("uploading");
     const supabase = createSupabaseBrowserClient();
+    let uploadedPaths: { videoPath: string; deckPath: string } | null = null;
     let response: Response;
 
     if (supabase) {
@@ -72,10 +79,20 @@ export function PitchSubmissionForm() {
       ]);
 
       if (videoUpload.error || deckUpload.error) {
+        await Promise.all([
+          videoUpload.error
+            ? Promise.resolve()
+            : supabase.storage.from("pitch-videos").remove([videoPath]),
+          deckUpload.error
+            ? Promise.resolve()
+            : supabase.storage.from("pitch-decks").remove([deckPath])
+        ]);
         setLoading(false);
+        setPhase("idle");
         setError(videoUpload.error?.message ?? deckUpload.error?.message ?? "Upload failed.");
         return;
       }
+      uploadedPaths = { videoPath, deckPath };
 
       response = await fetch("/api/submissions", {
         method: "POST",
@@ -84,8 +101,7 @@ export function PitchSubmissionForm() {
           submissionId,
           videoPath,
           deckPath,
-          profile: profileFromForm(formData),
-          transcript: stringFromForm(formData, "transcript")
+          profile: profileFromForm(formData)
         })
       });
     } else {
@@ -95,16 +111,54 @@ export function PitchSubmissionForm() {
       });
     }
 
-    const payload = (await response.json()) as { reportId?: string; error?: string };
-    setLoading(false);
+    const payload = (await response.json().catch(() => ({}))) as {
+      reportId?: string;
+      jobId?: string;
+      error?: string;
+    };
 
-    if (!response.ok || !payload.reportId) {
+    if (!response.ok) {
+      if (supabase && uploadedPaths) {
+        await Promise.all([
+          supabase.storage.from("pitch-videos").remove([uploadedPaths.videoPath]),
+          supabase.storage.from("pitch-decks").remove([uploadedPaths.deckPath])
+        ]);
+      }
+      setLoading(false);
+      setPhase("idle");
       setError(payload.error ?? "Something went wrong while creating the report.");
       return;
     }
 
-    router.push(`/reports/${payload.reportId}`);
-    router.refresh();
+    if (payload.reportId) {
+      router.push(`/reports/${payload.reportId}`);
+      router.refresh();
+      return;
+    }
+
+    if (!payload.jobId) {
+      setLoading(false);
+      setPhase("idle");
+      setError("The pitch was received, but its processing status is unavailable. Check your dashboard.");
+      return;
+    }
+
+    setPhase("processing");
+    const controller = new AbortController();
+    pollingController.current = controller;
+
+    try {
+      const completed = await pollPitchJob(payload.jobId, { signal: controller.signal });
+      router.push(`/reports/${completed.reportId}`);
+      router.refresh();
+    } catch (pollError) {
+      if (controller.signal.aborted) return;
+      setError(pollError instanceof Error ? pollError.message : "Pitch status is temporarily unavailable.");
+      setLoading(false);
+      setPhase("idle");
+    } finally {
+      pollingController.current = null;
+    }
   }
 
   return (
@@ -114,6 +168,15 @@ export function PitchSubmissionForm() {
         <div><h2>Set the context</h2><p>The panel uses this to judge the pitch against the business you are actually building.</p></div>
       </div>
       {error ? <div className="error" role="alert">{error}</div> : null}
+      {phase === "processing" ? (
+        <div className="processing-callout" role="status" aria-live="polite">
+          <span className="processing-pulse" aria-hidden="true" />
+          <div>
+            <strong>Your pitch is with the panel.</strong>
+            <p>We are reading the deck, challenging the story, and writing your investor report. You can leave this page; the pitch will stay in your dashboard.</p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="form-grid">
         <div className="field">
@@ -182,7 +245,7 @@ export function PitchSubmissionForm() {
           <div>
             <FileUp size={24} aria-hidden="true" />
             <label htmlFor="pitchVideo"><strong>Pitch video</strong></label>
-            <p className="help">Required. MP4, MOV, or WebM. Five minutes max.</p>
+            <p className="help">Required. MP4, MOV, or WebM. 24 MB max.</p>
             <input id="pitchVideo" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" name="video" required type="file" />
           </div>
         </div>
@@ -202,22 +265,9 @@ export function PitchSubmissionForm() {
         </div>
       </div>
 
-      <div className="field">
-        <label htmlFor="transcript">Transcript override</label>
-        <textarea
-          id="transcript"
-          name="transcript"
-          placeholder="Optional for the MVP: paste a transcript if you want immediate report quality before background transcription is connected."
-        />
-        <span className="help">
-          Production processing can transcribe the uploaded video. This field keeps the MVP useful
-          while you configure the AI worker.
-        </span>
-      </div>
-
       <button className="button primary" disabled={loading} type="submit" aria-busy={loading}>
         <Send size={18} aria-hidden="true" />
-        {loading ? "Generating report..." : "Generate investor report"}
+        {phase === "uploading" ? "Uploading your pitch..." : phase === "processing" ? "Panel reviewing..." : "Generate investor report"}
       </button>
     </form>
   );

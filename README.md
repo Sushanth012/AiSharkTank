@@ -7,7 +7,7 @@ deck, enter startup details, and receive a saved investor-style report.
 ## MVP Features
 
 - Account-based workspace with Supabase Auth.
-- Five-minute pitch upload flow with a 250 MB video cap.
+- Five-minute pitch upload flow with a 24 MB processing cap.
 - Required pitch deck upload, with PDF preferred and PPTX accepted.
 - Saved report dashboard with per-user access.
 - AI investor report with scores, investor decisions, follow-up questions,
@@ -30,6 +30,8 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SECRET_KEY=
 DEEPSEEK_API_KEY=
+OPENAI_API_KEY=
+CRON_SECRET=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 ```
@@ -44,9 +46,15 @@ pnpm dev
 
 ## Notes For Production
 
-- The commercial foundation persists a job and entitlement reservation before generation. The current route still claims the first job synchronously; a durable worker and artifact extraction are the next implementation phase.
-- The transcript override field keeps early testing useful before automated
-  video transcription and deck extraction are fully wired.
+- Authenticated submissions reserve an entitlement, enqueue a durable job, and return `202`.
+  The worker claims jobs atomically, heartbeats its lease, retries transient failures, and
+  releases the reserved credit when processing cannot complete.
+- The worker downloads private artifacts itself, validates file signatures, extracts bounded
+  PDF/PPTX text, transcribes the uploaded video, records AI cost telemetry, and saves the report
+  through service-role-only settlement functions.
+- `vercel.json` runs `/api/jobs/process` every minute. Set `CRON_SECRET` in Vercel and use a plan
+  that supports one-minute cron schedules. Preview deployments do not run Vercel Cron, so invoke
+  the endpoint manually with `Authorization: Bearer $CRON_SECRET` during preview smoke tests.
 - Valuation output is intentionally presented as an estimated practice range
   with assumptions and confidence, not financial advice.
 - Billing and premium UI stay disabled until `NEXT_PUBLIC_BILLING_ENABLED` and

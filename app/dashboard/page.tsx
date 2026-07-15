@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Plus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ActivePitchRefresh } from "@/components/ActivePitchRefresh";
 import { StatusBadge } from "@/components/StatusBadge";
 import { demoSubmissions } from "@/lib/demo-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
       .from("submissions")
       .select("id,startup_name,created_at,status,reports(id,content)")
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     submissions =
@@ -46,6 +48,7 @@ export default async function DashboardPage() {
 
   return (
     <AppShell variant="workspace">
+      <ActivePitchRefresh active={submissions.some((item) => item.status === "queued" || item.status === "processing")} />
       <div className="workspace-head">
         <div>
           <p className="eyebrow">Founder workspace</p>
@@ -103,14 +106,16 @@ export default async function DashboardPage() {
                       <ArrowRight size={17} aria-hidden="true" />
                     </Link>
                   ) : (
-                    <span className="badge processing">Processing</span>
+                    <span className={`status-note ${submission.status === "failed" ? "failed" : ""}`}>
+                      {submission.status === "failed" ? "This run needs another try" : "The panel is reviewing this pitch"}
+                    </span>
                   )}
                 </article>
               ))
             ) : (
               <div className="card">
                 <h3>No pitches yet</h3>
-                <p>Start with a five-minute pitch video and your current deck.</p>
+                <p>Start with a compressed pitch video under 24 MB and your current deck.</p>
               </div>
             )}
           </div>

@@ -16,26 +16,31 @@ import type { StartupProfile } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const profileSchema = z.object({
-  startupName: z.string().min(1),
-  founderName: z.string().min(1),
-  industry: z.string().min(1),
-  stage: z.string().min(1),
-  description: z.string().min(1),
-  targetCustomer: z.string().min(1),
-  businessModel: z.string().min(1),
-  traction: z.string().optional().default(""),
-  fundingGoal: z.string().optional().default(""),
-  demoLink: z.string().optional().default(""),
-  deckNotes: z.string().optional().default("")
-});
+const requiredShortText = z.string().trim().min(1).max(200);
+const optionalShortText = z.string().trim().max(500).optional().default("");
+const profileSchema = z
+  .object({
+    startupName: requiredShortText,
+    founderName: requiredShortText,
+    industry: requiredShortText,
+    stage: requiredShortText,
+    description: z.string().trim().min(1).max(4_000),
+    targetCustomer: z.string().trim().min(1).max(2_000),
+    businessModel: z.string().trim().min(1).max(2_000),
+    traction: optionalShortText,
+    fundingGoal: optionalShortText,
+    demoLink: z.string().trim().max(2_000).optional().default(""),
+    deckNotes: z.string().trim().max(8_000).optional().default("")
+  })
+  .refine((profile) => JSON.stringify(profile).length <= 20_000, {
+    message: "Startup profile is too large."
+  });
 
 const directSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   videoPath: z.string().min(1),
   deckPath: z.string().min(1),
   profile: profileSchema,
-  transcript: z.string().optional().default(""),
   tier: z.enum(["basic", "premium"]).optional().default("basic")
 });
 
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   if (video.size > MAX_VIDEO_BYTES) {
-    return NextResponse.json({ error: "Pitch video exceeds the 250 MB limit." }, { status: 400 });
+    return NextResponse.json({ error: "Pitch video exceeds the 24 MB processing limit." }, { status: 400 });
   }
 
   if (deck.size > MAX_DECK_BYTES) {
@@ -135,7 +140,7 @@ async function createDirectSubmission(request: Request) {
     return NextResponse.json({ error: "Invalid submission metadata." }, { status: 400 });
   }
 
-  const { submissionId, videoPath, deckPath, profile, transcript, tier } = parsed.data;
+  const { submissionId, videoPath, deckPath, profile, tier } = parsed.data;
 
   if (tier === "premium" && !premiumEnabled) {
     return NextResponse.json({ error: "Premium processing is not enabled yet." }, { status: 403 });
@@ -169,65 +174,23 @@ async function createDirectSubmission(request: Request) {
     return NextResponse.json({ error: submissionError.message }, { status: 500 });
   }
 
-  const { data: reservationId, error: reservationError } = await supabase.rpc(
-    "reserve_pitch_entitlement",
-    { p_submission_id: submissionId, p_tier: tier }
-  );
-  if (reservationError || !reservationId) {
+  const jobId = crypto.randomUUID();
+  const { data: queuedJobId, error: enqueueError } = await supabase.rpc("enqueue_pitch_job", {
+    p_submission_id: submissionId,
+    p_tier: tier,
+    p_job_id: jobId
+  });
+  if (enqueueError || !queuedJobId) {
     await supabase.from("submissions").delete().eq("id", submissionId);
+    const entitlementError = enqueueError?.message.includes("premium credits") ||
+      enqueueError?.message.includes("credit debt");
     return NextResponse.json(
-      { error: reservationError?.message ?? "No pitch entitlement is available." },
-      { status: 402 }
+      { error: enqueueError?.message ?? "Pitch processing could not be started." },
+      { status: entitlementError ? 402 : 500 }
     );
   }
 
-  const jobId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const { error: jobError } = await admin.from("pitch_jobs").insert({
-    id: jobId,
-    user_id: user.id,
-    submission_id: submissionId,
-    reservation_id: reservationId,
-    status: "processing",
-    claimed_at: now,
-    heartbeat_at: now
-  });
-  if (jobError) {
-    await admin.rpc("settle_pitch_reservation", {
-      p_reservation_id: reservationId,
-      p_outcome: "released",
-      p_reason: "job_enqueue_failed"
-    });
-    return NextResponse.json({ error: "Pitch processing could not be started." }, { status: 500 });
-  }
-
-  await admin.from("submissions").update({ status: "processing" }).eq("id", submissionId);
-
-  try {
-    const report = await generateInvestmentReport({
-      profile,
-      transcript,
-      deckText: profile.deckNotes
-    });
-    const requestedReportId = crypto.randomUUID();
-    const { data: reportId, error: completionError } = await admin.rpc("complete_pitch_job", {
-      p_job_id: jobId,
-      p_report_id: requestedReportId,
-      p_content: { ...report, id: requestedReportId },
-      p_recommendation: report.recommendation,
-      p_overall_score: report.overallScore
-    });
-    if (completionError || !reportId) throw completionError ?? new Error("Report settlement failed.");
-    return NextResponse.json({ reportId });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Pitch generation failed.";
-    await admin.rpc("fail_pitch_job", {
-      p_job_id: jobId,
-      p_error_code: "generation_failed",
-      p_error_message: message
-    });
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
+  return NextResponse.json({ jobId: queuedJobId, submissionId, status: "queued" }, { status: 202 });
 }
 
 function stringFromForm(formData: FormData, key: string) {
