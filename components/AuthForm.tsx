@@ -37,8 +37,9 @@ export function AuthForm() {
       return;
     }
 
-    if (mode === "signup") {
+    if (mode === "signup" && !result.data.session) {
       setMessage("Account created. Check your email if confirmation is enabled.");
+      return;
     }
 
     router.push("/dashboard");
@@ -47,10 +48,11 @@ export function AuthForm() {
 
   return (
     <form className="grid" onSubmit={submit}>
-      <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+      <div className="auth-tabs" aria-label="Authentication mode">
         <button
           type="button"
           className={mode === "signup" ? "active" : ""}
+          aria-pressed={mode === "signup"}
           onClick={() => setMode("signup")}
         >
           Sign up
@@ -58,6 +60,7 @@ export function AuthForm() {
         <button
           type="button"
           className={mode === "signin" ? "active" : ""}
+          aria-pressed={mode === "signin"}
           onClick={() => setMode("signin")}
         >
           Sign in
@@ -71,8 +74,8 @@ export function AuthForm() {
         </div>
       ) : null}
 
-      {error ? <div className="error">{error}</div> : null}
-      {message ? <div className="success">{message}</div> : null}
+      {error ? <div className="error" role="alert">{error}</div> : null}
+      {message ? <div className="success" role="status">{message}</div> : null}
 
       <div className="field">
         <label htmlFor="email">Email</label>

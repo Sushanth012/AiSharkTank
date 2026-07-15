@@ -45,11 +45,23 @@ export default async function DashboardPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell variant="workspace">
+      <div className="workspace-head">
+        <div>
+          <p className="eyebrow">Founder workspace</p>
+          <h1>Build the pitch they remember.</h1>
+        </div>
+        <div className="workspace-stats">
+          <div><strong>{submissions.length}</strong><span>Total pitches</span></div>
+          <div><strong>{submissions.filter((item) => item.status === "complete").length}</strong><span>Reports ready</span></div>
+          <div><strong>{submissions[0]?.overallScore ?? "N/A"}</strong><span>Latest score</span></div>
+        </div>
+      </div>
       <div className="dashboard-layout">
         <aside className="sidebar panel">
-          <h2>Founder workspace</h2>
-          <p>Review saved pitches, open completed reports, or start a new investor simulation.</p>
+          <span className="sidebar-label">Your next rep</span>
+          <h2>Ready to go again?</h2>
+          <p>Each run should answer the panel’s last hard question better.</p>
           <Link className="button primary full" href="/new">
             <Plus size={18} aria-hidden="true" />
             New pitch
@@ -64,9 +76,9 @@ export default async function DashboardPage() {
         <section>
           <div className="section-title">
             <div>
-              <p className="eyebrow">Reports</p>
-              <h1>Your pitch reviews</h1>
-              <p>Every report is attached to your account and can be revisited or deleted.</p>
+              <p className="eyebrow">Pitch history</p>
+              <h2>Your room recordings</h2>
+              <p>Revisit the feedback, track the story, and prepare your next version.</p>
             </div>
           </div>
 

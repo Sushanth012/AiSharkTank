@@ -1,6 +1,8 @@
 import OpenAI from "openai";
+import { z } from "zod";
 import { demoReport } from "@/lib/demo-data";
-import { isOpenAIConfigured } from "@/lib/config";
+import { isDeepSeekConfigured, isOpenAIConfigured } from "@/lib/config";
+import { assertWithinBudget, budgetForRoute, estimateRunCost, modelForRoute } from "@/lib/ai/models";
 import type { PitchReport, StartupProfile } from "@/lib/types";
 
 type GenerateReportInput = {
@@ -10,29 +12,134 @@ type GenerateReportInput = {
 };
 
 export async function generateInvestmentReport(input: GenerateReportInput): Promise<PitchReport> {
-  if (!isOpenAIConfigured) {
+  if (!isDeepSeekConfigured && !isOpenAIConfigured) {
     return personalizeDemoReport(input.profile);
   }
 
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-5.5",
-    instructions:
-      "You are an expert startup pitch evaluator. Return only valid JSON matching the requested report shape. Valuation estimates must be framed as practice-oriented ranges, not financial advice.",
-    input: buildPrompt(input)
+  const usingDeepSeek = isDeepSeekConfigured;
+  const model = usingDeepSeek ? modelForRoute("basic") : process.env.OPENAI_MODEL ?? "gpt-5.5";
+  const prompt = buildPrompt(input);
+
+  if (usingDeepSeek) {
+    const estimatedInputTokens = Math.ceil(prompt.length / 4);
+    const estimatedCost = estimateRunCost({ model, inputTokens: estimatedInputTokens, outputTokens: 6_000 });
+    assertWithinBudget(estimatedCost, budgetForRoute("basic"));
+  }
+
+  const client = new OpenAI({
+    apiKey: usingDeepSeek ? process.env.DEEPSEEK_API_KEY : process.env.OPENAI_API_KEY,
+    baseURL: usingDeepSeek ? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com" : undefined
   });
+  const response = await callWithRetry(() =>
+    client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert startup pitch evaluator. Return only one valid JSON object matching the requested shape. Valuation estimates are practice-oriented ranges, not financial advice."
+        },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 6_000
+    })
+  );
 
-  try {
-    const parsed = JSON.parse(response.output_text) as PitchReport;
-    return {
-      ...parsed,
-      id: parsed.id || crypto.randomUUID(),
-      startupName: input.profile.startupName,
-      generatedAt: new Date().toISOString()
-    };
-  } catch {
-    return personalizeDemoReport(input.profile);
+  const content = response.choices[0]?.message.content;
+  if (!content) {
+    throw new Error("The AI provider returned an empty report.");
   }
+
+  const parsed = pitchReportSchema.parse(JSON.parse(stripCodeFence(content)));
+
+  if (usingDeepSeek && response.usage) {
+    const cachedInputTokens = response.usage.prompt_tokens_details?.cached_tokens ?? 0;
+    const actualCost = estimateRunCost({
+      model,
+      inputTokens: response.usage.prompt_tokens,
+      cachedInputTokens,
+      outputTokens: response.usage.completion_tokens
+    });
+    assertWithinBudget(actualCost, budgetForRoute("basic"));
+  }
+
+  return {
+    ...parsed,
+    id: parsed.id || crypto.randomUUID(),
+    startupName: input.profile.startupName,
+    generatedAt: new Date().toISOString()
+  };
+}
+
+const decisionSchema = z.enum(["Invest", "Pass", "Invest with Conditions"]);
+
+export const pitchReportSchema = z.object({
+  id: z.string().default(""),
+  startupName: z.string(),
+  generatedAt: z.string().default(""),
+  overallScore: z.number().int().min(0).max(100),
+  businessScore: z.number().int().min(0).max(100),
+  deliveryScore: z.number().int().min(0).max(100),
+  recommendation: decisionSchema,
+  executiveSummary: z.string().min(1),
+  scores: z.array(
+    z.object({
+      label: z.string(),
+      value: z.number().int().min(0).max(100),
+      rationale: z.string()
+    })
+  ),
+  strengths: z.array(z.string()),
+  risks: z.array(z.string()),
+  nextMilestones: z.array(z.string()),
+  investorPanel: z.array(
+    z.object({
+      name: z.string(),
+      shortName: z.string(),
+      initials: z.string(),
+      accent: z.enum(["blue", "coral", "gold", "green", "violet"]),
+      lens: z.string(),
+      focus: z.string(),
+      decision: decisionSchema,
+      score: z.number().int().min(0).max(100),
+      thesis: z.string(),
+      signatureAdvice: z.string(),
+      questions: z.array(z.string())
+    })
+  ),
+  timeline: z.array(
+    z.object({ timestamp: z.string(), signal: z.string(), feedback: z.string() })
+  ),
+  valuation: z.object({
+    range: z.string(),
+    confidence: z.enum(["Low", "Medium", "High"]),
+    framing: z.string(),
+    assumptions: z.array(z.string())
+  }),
+  finalMemo: z.string().min(1)
+});
+
+async function callWithRetry<T>(operation: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableAiError(error) || attempt === maxAttempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+    }
+  }
+  throw new Error("AI request retry loop exhausted.");
+}
+
+function isRetryableAiError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const status = "status" in error && typeof error.status === "number" ? error.status : undefined;
+  return status === 408 || status === 409 || status === 429 || (status !== undefined && status >= 500);
+}
+
+function stripCodeFence(content: string) {
+  return content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
 function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {

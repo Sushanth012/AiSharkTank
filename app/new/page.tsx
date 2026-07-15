@@ -18,27 +18,29 @@ export default async function NewPitchPage() {
   }
 
   return (
-    <AppShell>
-      <div className="section-title">
+    <AppShell variant="workspace">
+      <div className="pitch-form-heading">
         <div>
-          <p className="eyebrow">New pitch review</p>
-          <h1>Upload your pitch and deck</h1>
+          <p className="eyebrow">New rehearsal</p>
+          <h1>Give the panel<br />something to challenge.</h1>
           <p>
-            Keep the video under five minutes. The MVP accepts MP4, MOV, or WebM video and
-            PDF or PPTX decks.
+            Tell us enough to understand the business, then upload the pitch exactly as you would deliver it.
           </p>
         </div>
+        <p className="pitch-flow-note">Context + materials in one pass. The panel report follows.</p>
       </div>
       <div className="form-shell">
         <PitchSubmissionForm />
         <aside className="grid">
           <section className="card">
-            <h3>Upload limits</h3>
+            <span className="aside-label">Room rules</span>
+            <h3>Keep it sharp</h3>
             <p>Video: {formatBytes(MAX_VIDEO_BYTES)} max</p>
             <p>Deck: {formatBytes(MAX_DECK_BYTES)} max</p>
           </section>
           <section className="card">
-            <h3>What the panel reviews</h3>
+            <span className="aside-label">On the scorecard</span>
+            <h3>What gets tested</h3>
             <ul className="list">
               <li>Problem clarity and customer urgency</li>
               <li>Market, competition, business model, and moat</li>

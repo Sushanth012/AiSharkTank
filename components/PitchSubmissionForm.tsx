@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import { FileUp, Send } from "lucide-react";
 import { MAX_DECK_BYTES, MAX_VIDEO_BYTES, formatBytes } from "@/lib/config";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { StartupProfile } from "@/lib/types";
@@ -109,7 +109,11 @@ export function PitchSubmissionForm() {
 
   return (
     <form className="panel form-card grid" onSubmit={submit}>
-      {error ? <div className="error">{error}</div> : null}
+      <div className="form-intro">
+        <span>Part one</span>
+        <div><h2>Set the context</h2><p>The panel uses this to judge the pitch against the business you are actually building.</p></div>
+      </div>
+      {error ? <div className="error" role="alert">{error}</div> : null}
 
       <div className="form-grid">
         <div className="field">
@@ -169,19 +173,26 @@ export function PitchSubmissionForm() {
         </div>
       </div>
 
+      <div className="form-intro materials-intro">
+        <span>Part two</span>
+        <div><h2>Bring the evidence</h2><p>Your pitch and deck are reviewed together, just like they would be in the room.</p></div>
+      </div>
       <div className="form-grid">
         <div className="dropzone">
           <div>
-            <strong>Pitch video</strong>
+            <FileUp size={24} aria-hidden="true" />
+            <label htmlFor="pitchVideo"><strong>Pitch video</strong></label>
             <p className="help">Required. MP4, MOV, or WebM. Five minutes max.</p>
-            <input accept="video/mp4,video/quicktime,video/webm,video/x-m4v" name="video" required type="file" />
+            <input id="pitchVideo" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" name="video" required type="file" />
           </div>
         </div>
         <div className="dropzone">
           <div>
-            <strong>Pitch deck</strong>
+            <FileUp size={24} aria-hidden="true" />
+            <label htmlFor="pitchDeck"><strong>Pitch deck</strong></label>
             <p className="help">Required for MVP. PDF preferred; PPTX accepted for storage.</p>
             <input
+              id="pitchDeck"
               accept="application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
               name="deck"
               required
@@ -204,7 +215,7 @@ export function PitchSubmissionForm() {
         </span>
       </div>
 
-      <button className="button primary" disabled={loading} type="submit">
+      <button className="button primary" disabled={loading} type="submit" aria-busy={loading}>
         <Send size={18} aria-hidden="true" />
         {loading ? "Generating report..." : "Generate investor report"}
       </button>

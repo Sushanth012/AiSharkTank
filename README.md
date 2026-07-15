@@ -23,15 +23,18 @@ deck, enter startup details, and receive a saved investor-style report.
 pnpm install
 ```
 
-2. Copy `.env.example` to `.env.local` and fill in:
+2. Copy `.env.example` to `.env.local` and fill in the Supabase, AI, and Stripe values you need.
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-OPENAI_API_KEY=
+SUPABASE_SECRET_KEY=
+DEEPSEEK_API_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 ```
 
-3. In Supabase, run `supabase/schema.sql` in the SQL editor.
+3. Apply the immutable files in `supabase/migrations/` in timestamp order. Those migrations are the schema source of truth.
 
 4. Start the app:
 
@@ -41,10 +44,10 @@ pnpm dev
 
 ## Notes For Production
 
-- The current MVP generates the report during submission. For heavier usage,
-  move transcription, deck parsing, and report generation into a background job
-  system such as Inngest or Trigger.dev.
+- The commercial foundation persists a job and entitlement reservation before generation. The current route still claims the first job synchronously; a durable worker and artifact extraction are the next implementation phase.
 - The transcript override field keeps early testing useful before automated
   video transcription and deck extraction are fully wired.
 - Valuation output is intentionally presented as an estimated practice range
   with assumptions and confidence, not financial advice.
+- Billing and premium UI stay disabled until `NEXT_PUBLIC_BILLING_ENABLED` and
+  `NEXT_PUBLIC_PREMIUM_ENABLED` are explicitly enabled after webhook testing.

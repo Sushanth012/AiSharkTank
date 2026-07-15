@@ -1,29 +1,26 @@
 import Link from "next/link";
-import { ChartNoAxesCombined } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, variant = "marketing" }: { children: React.ReactNode; variant?: "marketing" | "workspace" }) {
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${variant === "workspace" ? "workspace-shell" : "marketing-shell"}`}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="topbar">
-        <Link className="brand" href="/">
-          <span className="brand-mark">
-            <ChartNoAxesCombined size={19} aria-hidden="true" />
-          </span>
-          <span>AI Shark Tank</span>
-        </Link>
+        <Logo />
         <nav className="nav" aria-label="Primary navigation">
-          <Link className="nav-link" href="/dashboard">
-            Dashboard
-          </Link>
-          <Link className="nav-link" href="/new">
-            New Pitch
-          </Link>
-          <Link className="nav-link" href="/auth">
-            Account
-          </Link>
+          <Link className="nav-link" href="/dashboard">Workspace</Link>
+          <Link className="nav-link" href="/new">New pitch</Link>
+          <Link className="nav-link" href="/pricing">Pricing</Link>
+          <Link className="nav-cta" href="/auth">{variant === "workspace" ? "Account" : "Enter the room"}<ArrowUpRight size={15} aria-hidden="true" /></Link>
         </nav>
       </header>
-      <main className="page">{children}</main>
+      <main className="page" id="main-content">{children}</main>
+      <footer className="site-footer">
+        <Logo />
+        <p>Practice the pressure. Keep your equity.</p>
+        <span>AI feedback for rehearsal. Not financial advice.</span>
+      </footer>
     </div>
   );
 }
