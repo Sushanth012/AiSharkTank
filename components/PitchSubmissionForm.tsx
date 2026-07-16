@@ -11,6 +11,10 @@ import {
 } from "@/lib/billing/entitlements";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { pollPitchJob } from "@/lib/jobs/polling";
+import {
+  readVideoDurationSeconds,
+  validatePitchVideoDuration
+} from "@/lib/uploads/video-duration";
 import type { StartupProfile } from "@/lib/types";
 
 type PitchSubmissionFormProps = {
@@ -50,6 +54,12 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
 
     if (video.size > MAX_VIDEO_BYTES) {
       setError(`Video is too large. Keep it under ${formatBytes(MAX_VIDEO_BYTES)}.`);
+      return;
+    }
+
+    const durationError = validatePitchVideoDuration(await readVideoDurationSeconds(video));
+    if (durationError) {
+      setError(durationError);
       return;
     }
 
@@ -305,7 +315,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <div>
             <FileUp size={24} aria-hidden="true" />
             <label htmlFor="pitchVideo"><strong>Pitch video</strong></label>
-            <p className="help">Required. MP4, MOV, or WebM. 24 MB max.</p>
+            <p className="help">Required. 2 minutes recommended; 3 minutes and 24 MB maximum. MP4, MOV, or WebM.</p>
             <input id="pitchVideo" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" name="video" required type="file" />
           </div>
         </div>

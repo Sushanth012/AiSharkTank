@@ -115,7 +115,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="card">
                 <h3>No pitches yet</h3>
-                <p>Start with a compressed pitch video under 24 MB and your current deck.</p>
+                <p>Start with a two-minute pitch video and your current deck. Three minutes and 24 MB maximum.</p>
               </div>
             )}
           </div>
