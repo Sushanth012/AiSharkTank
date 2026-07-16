@@ -1,9 +1,54 @@
-import { CalendarClock, ChevronRight, CircleDollarSign, MessageCircleQuestion, Sparkles } from "lucide-react";
-import type { PitchReport } from "@/lib/types";
+import {
+  ArrowUpRight,
+  CalendarClock,
+  CircleDollarSign,
+  MessageCircleQuestion,
+  Sparkles
+} from "lucide-react";
+import type { InvestorDecision, InvestorReview, PitchReport } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ReportActions } from "@/components/ReportActions";
 
+const sharkRoster = [
+  { name: "Mark Cuban", title: "Tech & Scale", lens: "Can this become huge?", accent: "gold" },
+  { name: "Barbara Corcoran", title: "Story & Sales", lens: "Will customers care?", accent: "coral" },
+  { name: "Kevin O’Leary", title: "Money & Profit", lens: "Where is the profit?", accent: "blue" },
+  { name: "Lori Greiner", title: "Product & Customers", lens: "Would people buy it?", accent: "violet" },
+  { name: "Daymond John", title: "Brand & Growth", lens: "Will people remember it?", accent: "green" }
+] as const;
+
+function decisionExplanation(decision: InvestorDecision) {
+  if (decision === "Invest") return "The idea looks ready for a serious next conversation.";
+  if (decision === "Pass") return "It is not ready yet. Use the feedback, improve it, and pitch again.";
+  return "The idea is promising, but investors would want proof of a few key things first.";
+}
+
+function scoreLabel(score: number) {
+  if (score >= 80) return "Strong";
+  if (score >= 65) return "Getting there";
+  return "Needs work";
+}
+
+function displaySharks(panel: InvestorReview[]) {
+  return panel.map((review, index) => ({
+    ...review,
+    ...sharkRoster[index],
+    avatarIndex: index
+  }));
+}
+
+function SharkPortrait({ index, name, large = false }: { index: number; name: string; large?: boolean }) {
+  return (
+    <span
+      className={`investor-portrait portrait-${index}${large ? " large" : ""}`}
+      role="img"
+      aria-label={`${name}, AI-generated educational illustration`}
+    />
+  );
+}
+
 export function ReportView({ report }: { report: PitchReport }) {
+  const sharks = displaySharks(report.investorPanel);
   const investVotes = report.investorPanel.filter((investor) => investor.decision === "Invest").length;
   const conditionVotes = report.investorPanel.filter(
     (investor) => investor.decision === "Invest with Conditions"
@@ -15,40 +60,48 @@ export function ReportView({ report }: { report: PitchReport }) {
         <section className="panel report-hero">
           <div className="report-hero-top">
             <div>
-              <p className="eyebrow">Panel decision</p>
+              <p className="eyebrow">The big answer</p>
               <h1>{report.startupName}</h1>
-              <p>{report.executiveSummary}</p>
+              <div className="decision-translation">
+                <StatusBadge decision={report.recommendation} />
+                <p>{decisionExplanation(report.recommendation)}</p>
+              </div>
             </div>
             <div className="report-score">
               <strong>{report.overallScore}</strong>
-              <span>Panel score</span>
+              <span>{scoreLabel(report.overallScore)}</span>
             </div>
           </div>
+          <p className="report-summary">{report.executiveSummary}</p>
           <div className="panel-vote-strip">
             <div>
-              <span>Panel votes</span>
-              <strong>{investVotes} invest · {conditionVotes} conditional</strong>
+              <span>How the sharks voted</span>
+              <strong>{investVotes} yes · {conditionVotes} yes, with conditions</strong>
             </div>
-            <div className="vote-avatars" aria-label="Investor panel">
-              {report.investorPanel.map((investor) => (
-                <span className={`investor-avatar ${investor.accent}`} key={investor.name} title={investor.name}>
-                  {investor.initials}
-                </span>
+            <div className="vote-avatars" aria-label="Five AI-simulated investor perspectives">
+              {sharks.map((shark) => (
+                <SharkPortrait index={shark.avatarIndex} key={shark.name} name={shark.name} />
               ))}
             </div>
           </div>
         </section>
 
-        <section className="card">
-          <h3>Scorecard</h3>
+        <section className="card scorecard-card">
+          <div className="plain-section-heading">
+            <div>
+              <p className="eyebrow">Your pitch, broken down</p>
+              <h2>What the score means</h2>
+            </div>
+            <p>80–100 is strong. 65–79 is getting there. Below 65 needs another round of work.</p>
+          </div>
           <div className="score-row">
             {report.scores.map((score) => (
               <div className="score-line" key={score.label}>
                 <div className="score-top">
                   <span>{score.label}</span>
-                  <span>{score.value}/100</span>
+                  <span>{score.value}/100 · {scoreLabel(score.value)}</span>
                 </div>
-                <div className="bar">
+                <div className="bar" aria-label={`${score.label}: ${score.value} out of 100`}>
                   <span style={{ width: `${score.value}%` }} />
                 </div>
                 <p>{score.rationale}</p>
@@ -57,21 +110,19 @@ export function ReportView({ report }: { report: PitchReport }) {
           </div>
         </section>
 
-        <div className="grid two">
+        <div className="grid two report-lists">
           <section className="card">
-            <h3>Strengths</h3>
+            <p className="eyebrow">Keep this</p>
+            <h2>What is working</h2>
             <ul className="list">
-              {report.strengths.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
+              {report.strengths.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
-          <section className="card">
-            <h3>Risks</h3>
+          <section className="card warning-card">
+            <p className="eyebrow">Fix this</p>
+            <h2>What could trip you up</h2>
             <ul className="list">
-              {report.risks.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
+              {report.risks.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
         </div>
@@ -79,41 +130,45 @@ export function ReportView({ report }: { report: PitchReport }) {
         <section className="investor-panel-section">
           <div className="section-title panel-section-title">
             <div>
-              <p className="eyebrow">Five investor lenses</p>
-              <h2>Inside the shark panel</h2>
-              <p>Each verdict uses a distinct investing lens. These are practice perspectives inspired by public investor styles, not endorsements or real investor reviews.</p>
+              <p className="eyebrow">Meet your five sharks</p>
+              <h2>Five people. Five different questions.</h2>
+              <p>Five well-known investing styles, translated into clear feedback you can practice with.</p>
+              <div className="simulation-disclaimer">
+                Educational AI simulation. The portraits and feedback are AI-generated and inspired by publicly known investing styles. These investors did not review or endorse this report. PitchTank is not affiliated with ABC or <em>Shark Tank</em>.
+              </div>
             </div>
           </div>
           <div className="shark-grid">
-            {report.investorPanel.map((investor) => (
-              <article className={`shark-card ${investor.accent}`} key={investor.name}>
+            {sharks.map((shark) => (
+              <article className={`shark-card ${shark.accent}`} key={shark.name}>
                 <div className="shark-card-top">
-                  <div className={`investor-avatar large ${investor.accent}`}>{investor.initials}</div>
+                  <SharkPortrait index={shark.avatarIndex} name={shark.name} large />
                   <div>
-                    <p className="shark-lens">{investor.lens}</p>
-                    <h3>{investor.name}</h3>
-                    <p>{investor.shortName}</p>
+                    <p className="shark-lens">{shark.lens}</p>
+                    <h3>{shark.name}</h3>
+                    <p>{shark.title}</p>
                   </div>
                   <div className="shark-score">
-                    <strong>{investor.score}</strong>
-                    <span>score</span>
+                    <strong>{shark.score}</strong>
+                    <span>{scoreLabel(shark.score)}</span>
                   </div>
                 </div>
                 <div className="shark-verdict">
-                  <StatusBadge decision={investor.decision} />
-                  <span>{investor.focus}</span>
+                  <StatusBadge decision={shark.decision} />
+                  <span>{decisionExplanation(shark.decision)}</span>
                 </div>
-                <p className="shark-thesis">{investor.thesis}</p>
+                <div className="shark-says">
+                  <span>Their take</span>
+                  <p>{shark.thesis}</p>
+                </div>
                 <div className="signature-advice">
-                  <Sparkles size={15} aria-hidden="true" />
-                  <p>{investor.signatureAdvice}</p>
+                  <Sparkles size={18} aria-hidden="true" />
+                  <div><strong>Do this next</strong><p>{shark.signatureAdvice}</p></div>
                 </div>
                 <div className="shark-questions">
-                  <p><MessageCircleQuestion size={15} aria-hidden="true" /> Questions to answer</p>
+                  <p><MessageCircleQuestion size={17} aria-hidden="true" /> Be ready to answer</p>
                   <ul className="list">
-                    {investor.questions.map((question) => (
-                      <li key={question}>{question}</li>
-                    ))}
+                    {shark.questions.map((question) => <li key={question}>{question}</li>)}
                   </ul>
                 </div>
               </article>
@@ -121,59 +176,63 @@ export function ReportView({ report }: { report: PitchReport }) {
           </div>
         </section>
 
-        <section className="card">
-          <div className="memo-heading"><CircleDollarSign size={20} aria-hidden="true" /><h3>Final investment memo</h3></div>
+        <section className="card final-answer-card">
+          <div className="memo-heading"><CircleDollarSign size={22} aria-hidden="true" /><h2>The bottom line</h2></div>
           <p>{report.finalMemo}</p>
         </section>
       </div>
 
-      <aside className="grid">
-        <section className="card">
-          <StatusBadge decision={report.recommendation} />
-          <h3 style={{ marginTop: 12 }}>Panel recommendation</h3>
-          <p>{report.recommendation}</p>
-          <div className="recommendation-link">Read the investor verdicts <ChevronRight size={15} aria-hidden="true" /></div>
+      <aside className="grid report-side">
+        <section className="card next-moves-card">
+          <p className="eyebrow">Your game plan</p>
+          <h2>Do these 3 things next</h2>
+          <ol className="numbered-list">
+            {report.nextMilestones.map((item) => <li key={item}>{item}</li>)}
+          </ol>
         </section>
         <section className="card">
-          <h3>Valuation range</h3>
-          <p style={{ fontSize: 24, color: "var(--text)", fontWeight: 850 }}>
-            {report.valuation.range}
-          </p>
+          <p className="eyebrow">Practice estimate</p>
+          <h2>Possible valuation</h2>
+          <p className="valuation-number">{report.valuation.range}</p>
           <p>{report.valuation.framing}</p>
-          <div className="callout" style={{ marginTop: 12 }}>
-            Confidence: {report.valuation.confidence}
+          <div className="callout valuation-warning">
+            This is an AI practice estimate, not a price or financial advice. Confidence: {report.valuation.confidence}.
           </div>
-          <ul className="list" style={{ marginTop: 12 }}>
-            {report.valuation.assumptions.map((assumption) => (
-              <li key={assumption}>{assumption}</li>
-            ))}
-          </ul>
+          <details className="assumption-details">
+            <summary>What this estimate assumes</summary>
+            <ul className="list">
+              {report.valuation.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
+            </ul>
+          </details>
         </section>
         <section className="card">
-          <h3>Next milestones</h3>
-          <ul className="list">
-            {report.nextMilestones.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-        <section className="card">
-          <h3>Timeline feedback</h3>
-          <div className="grid">
+          <p className="eyebrow">Watch it back</p>
+          <h2>Moment-by-moment coaching</h2>
+          <div className="timeline-list">
             {report.timeline.map((moment) => (
               <div key={`${moment.timestamp}-${moment.signal}`}>
-                <strong>{moment.timestamp} - {moment.signal}</strong>
-                <p>{moment.feedback}</p>
+                <span>{moment.timestamp}</span>
+                <div><strong>{moment.signal}</strong><p>{moment.feedback}</p></div>
               </div>
             ))}
           </div>
         </section>
-        <section className="card">
-          <p className="meta">
-            <CalendarClock size={15} aria-hidden="true" />
-            {new Date(report.generatedAt).toLocaleString()}
-          </p>
+        <section className="card glossary-card">
+          <p className="eyebrow">Business words, decoded</p>
+          <h2>Quick translation</h2>
+          <dl>
+            <div><dt>GMV</dt><dd>The total value of everything sold through the business.</dd></div>
+            <div><dt>Take rate</dt><dd>The percentage of each sale the company keeps as a fee.</dd></div>
+            <div><dt>Customer acquisition cost</dt><dd>How much you spend to get one new customer.</dd></div>
+            <div><dt>Moat</dt><dd>Something that makes the business difficult for competitors to copy.</dd></div>
+            <div><dt>Marketplace liquidity</dt><dd>Having enough buyers and sellers for people to find what they need quickly.</dd></div>
+            <div><dt>Pre-money valuation</dt><dd>What the company may be worth before receiving new investment.</dd></div>
+          </dl>
+        </section>
+        <section className="card report-actions-card">
+          <p className="meta"><CalendarClock size={15} aria-hidden="true" />{new Date(report.generatedAt).toLocaleString()}</p>
           <ReportActions reportId={report.id} />
+          <a className="report-help-link" href="/new">Try another pitch <ArrowUpRight size={16} aria-hidden="true" /></a>
         </section>
       </aside>
     </div>
