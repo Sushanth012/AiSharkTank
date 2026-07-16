@@ -1,0 +1,25 @@
+{
+  "account": "acct_1TsrAyBroFNelPgC",
+  "currency": "usd",
+  "offers": {
+    "pitch_pack": {
+      "priceId": "price_1TsriCBroFNelPgCD2TO4aqm",
+      "lookupKey": "ai_shark_tank_pitch_pack_v1",
+      "unitAmount": 799,
+      "mode": "payment"
+    },
+    "builder": {
+      "priceId": "price_1TsriPBroFNelPgClfNVHXyo",
+      "lookupKey": "ai_shark_tank_builder_monthly_v1",
+      "unitAmount": 999,
+      "mode": "subscription",
+      "interval": "month"
+    },
+    "addon_pack": {
+      "priceId": "price_1TsriQBroFNelPgCGUM9nbZj",
+      "lookupKey": "ai_shark_tank_addon_pack_v1",
+      "unitAmount": 499,
+      "mode": "payment"
+    }
+  }
+}

@@ -1,11 +1,18 @@
 import { AppShell } from "@/components/AppShell";
 import { PitchSubmissionForm } from "@/components/PitchSubmissionForm";
 import { MAX_DECK_BYTES, MAX_VIDEO_BYTES, formatBytes } from "@/lib/config";
+import { premiumEnabled } from "@/lib/config";
+import type { EntitlementSummary } from "@/lib/billing/entitlements";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 export default async function NewPitchPage() {
   const supabase = await createSupabaseServerClient();
+  let entitlements: EntitlementSummary = {
+    freePitchAvailable: true,
+    premiumCredits: 0,
+    creditDebt: 0
+  };
 
   if (supabase) {
     const {
@@ -15,30 +22,48 @@ export default async function NewPitchPage() {
     if (!user) {
       redirect("/auth");
     }
+
+    const { data: summary, error: summaryError } = await supabase
+      .from("entitlement_summary")
+      .select("free_pitch_available,premium_credits,credit_debt")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (summaryError) throw summaryError;
+
+    if (summary) {
+      entitlements = {
+        freePitchAvailable: summary.free_pitch_available,
+        premiumCredits: summary.premium_credits,
+        creditDebt: summary.credit_debt
+      };
+    }
   }
 
   return (
-    <AppShell>
-      <div className="section-title">
+    <AppShell variant="workspace">
+      <div className="pitch-form-heading">
         <div>
-          <p className="eyebrow">New pitch review</p>
-          <h1>Upload your pitch and deck</h1>
+          <p className="eyebrow">New rehearsal</p>
+          <h1>Give the panel<br />something to challenge.</h1>
           <p>
-            Keep the video under five minutes. The MVP accepts MP4, MOV, or WebM video and
-            PDF or PPTX decks.
+            Tell us enough to understand the business, then upload the pitch exactly as you would deliver it.
           </p>
         </div>
+        <p className="pitch-flow-note">Context + materials in one pass. The panel report follows.</p>
       </div>
       <div className="form-shell">
-        <PitchSubmissionForm />
+        <PitchSubmissionForm entitlements={entitlements} premiumEnabled={premiumEnabled} />
         <aside className="grid">
           <section className="card">
-            <h3>Upload limits</h3>
+            <span className="aside-label">Room rules</span>
+            <h3>Keep it sharp</h3>
             <p>Video: {formatBytes(MAX_VIDEO_BYTES)} max</p>
             <p>Deck: {formatBytes(MAX_DECK_BYTES)} max</p>
           </section>
           <section className="card">
-            <h3>What the panel reviews</h3>
+            <span className="aside-label">On the scorecard</span>
+            <h3>What gets tested</h3>
             <ul className="list">
               <li>Problem clarity and customer urgency</li>
               <li>Market, competition, business model, and moat</li>

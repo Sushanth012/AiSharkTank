@@ -11,8 +11,17 @@ export default async function ReportPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  if (id === "demo-report") {
+    return (
+      <AppShell variant="workspace">
+        <ReportView report={demoReport} />
+      </AppShell>
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
-  let report: PitchReport | null = id === "demo-report" ? demoReport : null;
+  let report: PitchReport | null = null;
 
   if (supabase) {
     const {
@@ -38,7 +47,7 @@ export default async function ReportPage({
   }
 
   return (
-    <AppShell>
+    <AppShell variant="workspace">
       <ReportView report={report} />
     </AppShell>
   );

@@ -64,12 +64,12 @@ export const demoReport: PitchReport = {
   ],
   investorPanel: [
     {
-      name: "Kevin O'Leary",
-      shortName: "Mr. Wonderful",
-      initials: "KO",
+      name: "Morgan Vale",
+      shortName: "The Steward",
+      initials: "MV",
       accent: "gold",
       lens: "Profit discipline",
-      focus: "Investment lens inspired by Kevin O'Leary",
+      focus: "Capital efficiency and durable unit economics",
       decision: "Invest with Conditions",
       score: 81,
       thesis:
@@ -82,12 +82,12 @@ export const demoReport: PitchReport = {
       ]
     },
     {
-      name: "Mark Cuban",
+      name: "Alex Rowan",
       shortName: "The Operator",
-      initials: "MC",
+      initials: "AR",
       accent: "blue",
       lens: "Product and execution",
-      focus: "Investment lens inspired by Mark Cuban",
+      focus: "Product defensibility and operating velocity",
       decision: "Pass",
       score: 72,
       thesis:
@@ -100,12 +100,12 @@ export const demoReport: PitchReport = {
       ]
     },
     {
-      name: "Barbara Corcoran",
+      name: "Rina Calder",
       shortName: "The Storyteller",
-      initials: "BC",
+      initials: "RC",
       accent: "coral",
       lens: "Founder and go-to-market",
-      focus: "Investment lens inspired by Barbara Corcoran",
+      focus: "Founder clarity and repeatable distribution",
       decision: "Invest",
       score: 89,
       thesis:
@@ -118,12 +118,12 @@ export const demoReport: PitchReport = {
       ]
     },
     {
-      name: "Daymond John",
+      name: "Darius North",
       shortName: "The Brand Builder",
-      initials: "DJ",
+      initials: "DN",
       accent: "green",
       lens: "Brand and community",
-      focus: "Investment lens inspired by Daymond John",
+      focus: "Cultural resonance and community-led growth",
       decision: "Invest",
       score: 86,
       thesis:
@@ -136,12 +136,12 @@ export const demoReport: PitchReport = {
       ]
     },
     {
-      name: "Lori Greiner",
+      name: "Leah Quinn",
       shortName: "The Customer Advocate",
-      initials: "LG",
+      initials: "LQ",
       accent: "violet",
       lens: "Customer delight and scale",
-      focus: "Investment lens inspired by Lori Greiner",
+      focus: "Customer experience and scalable demand",
       decision: "Invest with Conditions",
       score: 80,
       thesis:
