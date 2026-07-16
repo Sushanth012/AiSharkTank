@@ -55,9 +55,9 @@ pnpm dev
 - The worker downloads private artifacts itself, validates file signatures, extracts bounded
   PDF/PPTX text, transcribes the uploaded video, records AI cost telemetry, and saves the report
   through service-role-only settlement functions.
-- `vercel.json` runs `/api/jobs/process` every minute. Set `CRON_SECRET` in Vercel and use a plan
-  that supports one-minute cron schedules. Preview deployments do not run Vercel Cron, so invoke
-  the endpoint manually with `Authorization: Bearer $CRON_SECRET` during preview smoke tests.
+- A successful submission starts one durable job after the `202` response, so founders do not wait
+  on generation. `vercel.json` also runs `/api/jobs/process` daily as a Hobby-plan reconciliation
+  fallback. Higher-volume production can increase that cadence after upgrading Vercel.
 - Valuation output is intentionally presented as an estimated practice range
   with assumptions and confidence, not financial advice.
 - Billing and premium UI stay disabled until `NEXT_PUBLIC_BILLING_ENABLED` and

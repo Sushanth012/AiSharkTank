@@ -12,9 +12,10 @@ import { generateInvestmentReport } from "@/lib/report-generator";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { StartupProfile } from "@/lib/types";
+import { schedulePitchWorker } from "@/lib/jobs/schedule-pitch-worker";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const requiredShortText = z.string().trim().min(1).max(200);
 const optionalShortText = z.string().trim().max(500).optional().default("");
@@ -189,6 +190,8 @@ async function createDirectSubmission(request: Request) {
       { status: entitlementError ? 402 : 500 }
     );
   }
+
+  schedulePitchWorker();
 
   return NextResponse.json({ jobId: queuedJobId, submissionId, status: "queued" }, { status: 202 });
 }
