@@ -40,7 +40,7 @@ const profileSchema = z
 const directSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   videoPath: z.string().min(1),
-  deckPath: z.string().min(1),
+  deckPath: z.string().optional().default(""),
   profile: profileSchema,
   tier: z.enum(["basic", "premium"]).optional().default("basic")
 });
@@ -62,21 +62,18 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const video = formData.get("video");
   const deck = formData.get("deck");
+  const hasDeck = deck instanceof File && deck.size > 0;
   const transcript = stringFromForm(formData, "transcript");
 
   if (!(video instanceof File) || video.size === 0) {
     return NextResponse.json({ error: "Pitch video is required." }, { status: 400 });
   }
 
-  if (!(deck instanceof File) || deck.size === 0) {
-    return NextResponse.json({ error: "Pitch deck is required." }, { status: 400 });
-  }
-
   if (video.size > MAX_VIDEO_BYTES) {
     return NextResponse.json({ error: "Pitch video exceeds the 24 MB processing limit." }, { status: 400 });
   }
 
-  if (deck.size > MAX_DECK_BYTES) {
+  if (hasDeck && deck.size > MAX_DECK_BYTES) {
     return NextResponse.json({ error: "Pitch deck exceeds the 50 MB limit." }, { status: 400 });
   }
 
@@ -84,7 +81,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported video type." }, { status: 400 });
   }
 
-  if (deck.type && !acceptedDeckTypes.includes(deck.type)) {
+  if (hasDeck && deck.type && !acceptedDeckTypes.includes(deck.type)) {
     return NextResponse.json({ error: "Unsupported deck type." }, { status: 400 });
   }
 
@@ -147,13 +144,15 @@ async function createDirectSubmission(request: Request) {
     return NextResponse.json({ error: "Premium processing is not enabled yet." }, { status: 403 });
   }
 
-  if (!videoPath.startsWith(`${user.id}/`) || !deckPath.startsWith(`${user.id}/`)) {
+  if (!videoPath.startsWith(`${user.id}/`) || (deckPath && !deckPath.startsWith(`${user.id}/`))) {
     return NextResponse.json({ error: "Upload paths do not belong to this user." }, { status: 403 });
   }
 
   const [videoExists, deckExists] = await Promise.all([
     verifyStoredObject(supabase, "pitch-videos", videoPath, MAX_VIDEO_BYTES, acceptedVideoTypes),
-    verifyStoredObject(supabase, "pitch-decks", deckPath, MAX_DECK_BYTES, acceptedDeckTypes)
+    deckPath
+      ? verifyStoredObject(supabase, "pitch-decks", deckPath, MAX_DECK_BYTES, acceptedDeckTypes)
+      : Promise.resolve(true)
   ]);
   if (!videoExists || !deckExists) {
     return NextResponse.json({ error: "Uploaded pitch files could not be verified." }, { status: 400 });

@@ -59,7 +59,7 @@ export default async function NewPitchPage() {
             <span className="aside-label">Room rules</span>
             <h3>Keep it sharp</h3>
             <p>Video: {formatBytes(MAX_VIDEO_BYTES)} max</p>
-            <p>Deck: {formatBytes(MAX_DECK_BYTES)} max</p>
+            <p>Deck: optional, {formatBytes(MAX_DECK_BYTES)} max</p>
           </section>
           <section className="card">
             <span className="aside-label">On the scorecard</span>

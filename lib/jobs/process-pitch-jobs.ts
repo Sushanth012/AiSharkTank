@@ -76,15 +76,19 @@ export async function processPitchJobs(batchSize: number): Promise<PitchWorkerRe
 
       const [video, deck] = await Promise.all([
         downloadArtifact(admin, "pitch-videos", submission.video_path),
-        downloadArtifact(admin, "pitch-decks", submission.deck_path)
+        submission.deck_path
+          ? downloadArtifact(admin, "pitch-decks", submission.deck_path)
+          : Promise.resolve(null)
       ]);
       const extractionStartedAt = Date.now();
       const artifacts = await extractPitchArtifacts({
         video: video.bytes,
         videoMimeType: video.mimeType || mimeTypeForPath(submission.video_path),
         videoFileName: fileNameForPath(submission.video_path),
-        deck: deck.bytes,
-        deckMimeType: deck.mimeType || mimeTypeForPath(submission.deck_path)
+        deck: deck?.bytes,
+        deckMimeType: deck
+          ? deck.mimeType || mimeTypeForPath(submission.deck_path)
+          : undefined
       });
       const extractionMs = Date.now() - extractionStartedAt;
       const { error: artifactUpdateError } = await admin

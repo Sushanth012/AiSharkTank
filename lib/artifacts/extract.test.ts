@@ -29,6 +29,7 @@ vi.mock("openai", () => {
 import {
   ArtifactValidationError,
   assertVideoSignature,
+  extractPitchArtifacts,
   extractDeckText,
   transcribePitchVideo
 } from "./extract";
@@ -122,6 +123,23 @@ describe("artifact validation", () => {
         response_format: "text"
       })
     );
+  });
+
+  it("creates pitch artifacts without a deck", async () => {
+    process.env.GROQ_API_KEY = "groq-test-key";
+    const video = new Uint8Array([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0, 0, 0, 0]);
+
+    await expect(
+      extractPitchArtifacts({
+        video,
+        videoMimeType: "video/mp4",
+        videoFileName: "yc-application.mp4"
+      })
+    ).resolves.toMatchObject({
+      deckText: "",
+      deckCharacters: 0,
+      transcript: "A clear founder pitch."
+    });
   });
 
   it("honors custom Groq endpoint and transcription model settings", async () => {

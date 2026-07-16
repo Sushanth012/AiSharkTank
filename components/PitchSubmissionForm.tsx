@@ -41,14 +41,10 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
     const formData = new FormData(form);
     const video = formData.get("video");
     const deck = formData.get("deck");
+    const hasDeck = deck instanceof File && deck.size > 0;
 
     if (!(video instanceof File) || video.size === 0) {
       setError("Add a pitch video before submitting.");
-      return;
-    }
-
-    if (!(deck instanceof File) || deck.size === 0) {
-      setError("Add a pitch deck before submitting.");
       return;
     }
 
@@ -63,7 +59,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
       return;
     }
 
-    if (deck.size > MAX_DECK_BYTES) {
+    if (hasDeck && deck.size > MAX_DECK_BYTES) {
       setError(`Deck is too large. Keep it under ${formatBytes(MAX_DECK_BYTES)}.`);
       return;
     }
@@ -71,7 +67,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
     setLoading(true);
     setPhase("uploading");
     const supabase = createSupabaseBrowserClient();
-    let uploadedPaths: { videoPath: string; deckPath: string } | null = null;
+    let uploadedPaths: { videoPath: string; deckPath?: string } | null = null;
     let response: Response;
 
     if (supabase) {
@@ -87,17 +83,21 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
 
       const submissionId = crypto.randomUUID();
       const videoPath = `${user.id}/${submissionId}/${safeFileName(video.name)}`;
-      const deckPath = `${user.id}/${submissionId}/${safeFileName(deck.name)}`;
+      const deckPath = hasDeck
+        ? `${user.id}/${submissionId}/${safeFileName(deck.name)}`
+        : "";
 
       const [videoUpload, deckUpload] = await Promise.all([
         supabase.storage.from("pitch-videos").upload(videoPath, video, {
           contentType: video.type || "application/octet-stream",
           upsert: false
         }),
-        supabase.storage.from("pitch-decks").upload(deckPath, deck, {
-          contentType: deck.type || "application/octet-stream",
-          upsert: false
-        })
+        hasDeck
+          ? supabase.storage.from("pitch-decks").upload(deckPath, deck, {
+              contentType: deck.type || "application/octet-stream",
+              upsert: false
+            })
+          : Promise.resolve({ error: null })
       ]);
 
       if (videoUpload.error || deckUpload.error) {
@@ -105,7 +105,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           videoUpload.error
             ? Promise.resolve()
             : supabase.storage.from("pitch-videos").remove([videoPath]),
-          deckUpload.error
+          deckUpload.error || !deckPath
             ? Promise.resolve()
             : supabase.storage.from("pitch-decks").remove([deckPath])
         ]);
@@ -114,7 +114,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
         setError(videoUpload.error?.message ?? deckUpload.error?.message ?? "Upload failed.");
         return;
       }
-      uploadedPaths = { videoPath, deckPath };
+      uploadedPaths = { videoPath, ...(deckPath ? { deckPath } : {}) };
 
       response = await fetch("/api/submissions", {
         method: "POST",
@@ -144,7 +144,9 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
       if (supabase && uploadedPaths) {
         await Promise.all([
           supabase.storage.from("pitch-videos").remove([uploadedPaths.videoPath]),
-          supabase.storage.from("pitch-decks").remove([uploadedPaths.deckPath])
+          uploadedPaths.deckPath
+            ? supabase.storage.from("pitch-decks").remove([uploadedPaths.deckPath])
+            : Promise.resolve()
         ]);
       }
       setLoading(false);
@@ -196,7 +198,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <span className="processing-pulse" aria-hidden="true" />
           <div>
             <strong>Your pitch is with the panel.</strong>
-            <p>We are reading the deck, challenging the story, and writing your investor report. You can leave this page; the pitch will stay in your dashboard.</p>
+            <p>We are reviewing your video and any supporting materials, challenging the story, and writing your investor report. You can leave this page; the pitch will stay in your dashboard.</p>
           </div>
         </div>
       ) : null}
@@ -297,18 +299,18 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <input id="fundingGoal" name="fundingGoal" placeholder="$250K pre-seed" />
         </div>
         <div className="field">
-          <label htmlFor="demoLink">Demo link</label>
-          <input id="demoLink" name="demoLink" placeholder="https://..." type="url" />
+          <label htmlFor="demoLink">Demo link <span className="optional-label">Optional</span></label>
+          <input id="demoLink" name="demoLink" placeholder="Add later if you do not have one yet" type="url" />
         </div>
         <div className="field">
-          <label htmlFor="deckNotes">Deck notes</label>
-          <input id="deckNotes" name="deckNotes" placeholder="Anything the deck emphasizes" />
+          <label htmlFor="deckNotes">Deck notes <span className="optional-label">Optional</span></label>
+          <input id="deckNotes" name="deckNotes" placeholder="Anything else the panel should know" />
         </div>
       </div>
 
       <div className="form-intro materials-intro">
         <span>Part two</span>
-        <div><h2>Bring the evidence</h2><p>Your pitch and deck are reviewed together, just like they would be in the room.</p></div>
+        <div><h2>Add your pitch</h2><p>Your video is enough for a YC-style application review. Add a deck only if it helps explain the idea.</p></div>
       </div>
       <div className="form-grid">
         <div className="dropzone">
@@ -322,13 +324,12 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
         <div className="dropzone">
           <div>
             <FileUp size={24} aria-hidden="true" />
-            <label htmlFor="pitchDeck"><strong>Pitch deck</strong></label>
-            <p className="help">Required for MVP. PDF preferred; PPTX accepted for storage.</p>
+            <label htmlFor="pitchDeck"><strong>Pitch deck</strong> <span className="optional-label">Optional</span></label>
+            <p className="help">Skip this for a YC-style application video, or add a PDF/PPTX for extra context.</p>
             <input
               id="pitchDeck"
               accept="application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
               name="deck"
-              required
               type="file"
             />
           </div>
