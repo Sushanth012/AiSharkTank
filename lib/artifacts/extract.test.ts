@@ -1,10 +1,56 @@
 import JSZip from "jszip";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const openAiMocks = vi.hoisted(() => ({
+  constructor: vi.fn(),
+  createTranscription: vi.fn(),
+  toFile: vi.fn()
+}));
+
+vi.mock("openai", () => {
+  class OpenAIMock {
+    audio = {
+      transcriptions: {
+        create: openAiMocks.createTranscription
+      }
+    };
+
+    constructor(options: unknown) {
+      openAiMocks.constructor(options);
+    }
+  }
+
+  return {
+    default: OpenAIMock,
+    toFile: openAiMocks.toFile
+  };
+});
+
 import {
   ArtifactValidationError,
   assertVideoSignature,
-  extractDeckText
+  extractDeckText,
+  transcribePitchVideo
 } from "./extract";
+
+const originalGroqApiKey = process.env.GROQ_API_KEY;
+const originalGroqBaseUrl = process.env.GROQ_BASE_URL;
+const originalGroqModel = process.env.GROQ_TRANSCRIPTION_MODEL;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  delete process.env.GROQ_API_KEY;
+  delete process.env.GROQ_BASE_URL;
+  delete process.env.GROQ_TRANSCRIPTION_MODEL;
+  openAiMocks.toFile.mockResolvedValue({ name: "pitch.mp4" });
+  openAiMocks.createTranscription.mockResolvedValue(" A clear founder pitch. ");
+});
+
+afterEach(() => {
+  restoreEnvironmentVariable("GROQ_API_KEY", originalGroqApiKey);
+  restoreEnvironmentVariable("GROQ_BASE_URL", originalGroqBaseUrl);
+  restoreEnvironmentVariable("GROQ_TRANSCRIPTION_MODEL", originalGroqModel);
+});
 
 describe("artifact validation", () => {
   it("accepts MP4 and WebM signatures", () => {
@@ -58,4 +104,69 @@ describe("artifact validation", () => {
       )
     ).rejects.toThrow("safe processing limit");
   });
+
+  it("transcribes video through Groq's OpenAI-compatible endpoint", async () => {
+    process.env.GROQ_API_KEY = "groq-test-key";
+
+    await expect(
+      transcribePitchVideo(new Uint8Array([1, 2, 3]), "video/mp4", "pitch.mp4")
+    ).resolves.toBe("A clear founder pitch.");
+
+    expect(openAiMocks.constructor).toHaveBeenCalledWith({
+      apiKey: "groq-test-key",
+      baseURL: "https://api.groq.com/openai/v1"
+    });
+    expect(openAiMocks.createTranscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "whisper-large-v3-turbo",
+        response_format: "text"
+      })
+    );
+  });
+
+  it("honors custom Groq endpoint and transcription model settings", async () => {
+    process.env.GROQ_API_KEY = "groq-test-key";
+    process.env.GROQ_BASE_URL = "https://groq.example.test/openai/v1";
+    process.env.GROQ_TRANSCRIPTION_MODEL = "custom-whisper";
+
+    await transcribePitchVideo(new Uint8Array([1]), "video/webm", "pitch.webm");
+
+    expect(openAiMocks.constructor).toHaveBeenCalledWith({
+      apiKey: "groq-test-key",
+      baseURL: "https://groq.example.test/openai/v1"
+    });
+    expect(openAiMocks.createTranscription).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "custom-whisper" })
+    );
+  });
+
+  it("fails safely when Groq transcription is not configured", async () => {
+    await expect(
+      transcribePitchVideo(new Uint8Array([1]), "video/mp4", "pitch.mp4")
+    ).rejects.toThrow("Video transcription is not configured");
+
+    expect(openAiMocks.constructor).not.toHaveBeenCalled();
+  });
+
+  it("rejects videos above Groq's 24 MB application limit before making a request", async () => {
+    process.env.GROQ_API_KEY = "groq-test-key";
+
+    await expect(
+      transcribePitchVideo(
+        new Uint8Array(24 * 1024 * 1024 + 1),
+        "video/mp4",
+        "pitch.mp4"
+      )
+    ).rejects.toThrow("under 24 MB");
+
+    expect(openAiMocks.constructor).not.toHaveBeenCalled();
+  });
 });
+
+function restoreEnvironmentVariable(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
