@@ -58,7 +58,7 @@ export async function generateInvestmentReport(input: GenerateReportInput): Prom
           {
             role: "system",
             content:
-              "You are an expert startup pitch evaluator. Return only one valid JSON object matching the requested shape. Valuation estimates are practice-oriented ranges, not financial advice."
+              "You are a supportive startup pitch coach for high school and college students. Return only one valid JSON object matching the requested shape. Use plain language. Valuation estimates are practice-oriented ranges, not financial advice."
           },
           { role: "user", content: prompt }
         ],
@@ -200,9 +200,12 @@ function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {
   return JSON.stringify({
     task: "Generate an AI Shark Tank investor panel report.",
     constraints: [
-      "Use a college-graduate founder audience: direct, professional, encouraging, and specific.",
-      "Include five investor perspectives with the named lenses: profit discipline, product and execution, founder and go-to-market, brand and community, customer delight and scale.",
-      "Do not claim that any real investor reviewed the pitch. Names and public personas must not be used in generated output; return original agent names for production.",
+      "Write for a high school student. Use short sentences, common words, and an encouraging but honest tone.",
+      "Keep each explanation to one or two sentences. Every bullet should make one clear point.",
+      "Avoid unexplained business jargon. If a term such as unit economics, moat, liquidity, GMV, or go-to-market is necessary, explain it immediately in everyday language.",
+      "Make every piece of criticism actionable: say what is unclear, why it matters, and the next step the founder can take.",
+      "Include exactly five investor perspectives in this order: tech and scale, story and sales, money and profit, product and customers, brand and growth.",
+      "The report is an educational AI simulation. Never claim that Mark Cuban, Barbara Corcoran, Kevin O’Leary, Lori Greiner, Daymond John, ABC, or Shark Tank reviewed, wrote, approved, or endorsed the feedback.",
       "Use recommendation values only: Invest, Pass, Invest with Conditions.",
       "Scores must be integers from 0 to 100.",
       "Valuation confidence should usually be Low or Medium for early-stage companies."
@@ -251,11 +254,11 @@ function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {
 }
 
 const investorRoster = [
-  { name: "Morgan Vale", shortName: "The Steward", initials: "MV", accent: "gold", lens: "Profit discipline", focus: "Capital efficiency and durable unit economics" },
-  { name: "Alex Rowan", shortName: "The Operator", initials: "AR", accent: "blue", lens: "Product and execution", focus: "Product defensibility and operating velocity" },
-  { name: "Rina Calder", shortName: "The Storyteller", initials: "RC", accent: "coral", lens: "Founder and go-to-market", focus: "Founder clarity and repeatable distribution" },
-  { name: "Darius North", shortName: "The Brand Builder", initials: "DN", accent: "green", lens: "Brand and community", focus: "Cultural resonance and community-led growth" },
-  { name: "Leah Quinn", shortName: "The Customer Advocate", initials: "LQ", accent: "violet", lens: "Customer delight and scale", focus: "Customer experience and scalable demand" }
+  { name: "Mark Cuban", shortName: "Tech & Scale", initials: "MC", accent: "gold", lens: "Can this become huge?", focus: "Technology, competition, and the path to a very large company" },
+  { name: "Barbara Corcoran", shortName: "Story & Sales", initials: "BC", accent: "coral", lens: "Will customers care?", focus: "A memorable founder story and a practical sales plan" },
+  { name: "Kevin O’Leary", shortName: "Money & Profit", initials: "KO", accent: "blue", lens: "Where is the profit?", focus: "Costs, pricing, and a believable path to profit" },
+  { name: "Lori Greiner", shortName: "Product & Customers", initials: "LG", accent: "violet", lens: "Would people buy it?", focus: "A useful product that customers quickly understand" },
+  { name: "Daymond John", shortName: "Brand & Growth", initials: "DJ", accent: "green", lens: "Will people remember it?", focus: "Brand, community, and a repeatable plan to grow" }
 ] as const;
 
 export function applyInvestorRoster(panel: PitchReport["investorPanel"]): PitchReport["investorPanel"] {

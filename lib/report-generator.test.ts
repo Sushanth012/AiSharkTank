@@ -55,11 +55,11 @@ describe("AI provider boundaries", () => {
 
     const panel = applyInvestorRoster(providerPanel);
     expect(panel.map((review) => review.name)).toEqual([
-      "Morgan Vale",
-      "Alex Rowan",
-      "Rina Calder",
-      "Darius North",
-      "Leah Quinn"
+      "Mark Cuban",
+      "Barbara Corcoran",
+      "Kevin O’Leary",
+      "Lori Greiner",
+      "Daymond John"
     ]);
     expect(panel[0].thesis).toBe(providerPanel[0].thesis);
   });
