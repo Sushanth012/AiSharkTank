@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { schedulePitchWorker } from "@/lib/jobs/schedule-pitch-worker";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,10 @@ export async function GET(
   }
   if (!job) {
     return NextResponse.json({ error: "Pitch job not found." }, { status: 404 });
+  }
+
+  if (job.status === "queued") {
+    schedulePitchWorker();
   }
 
   let reportId: string | undefined;

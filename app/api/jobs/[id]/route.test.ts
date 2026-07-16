@@ -54,4 +54,23 @@ describe("GET /api/jobs/[id]", () => {
     expect(response.status).toBe(200);
     expect(mocks.schedulePitchWorker).toHaveBeenCalledTimes(1);
   });
+
+  it("does not start another worker for a job that is already processing", async () => {
+    mocks.maybeSingle.mockResolvedValue({
+      data: {
+        id: "job-1",
+        submission_id: "submission-1",
+        status: "processing",
+        error_code: null
+      },
+      error: null
+    });
+
+    const response = await GET(new Request("http://localhost/api/jobs/job-1"), {
+      params: Promise.resolve({ id: "job-1" })
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.schedulePitchWorker).not.toHaveBeenCalled();
+  });
 });
