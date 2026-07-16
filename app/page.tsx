@@ -45,7 +45,7 @@ export default function HomePage() {
 
       <section className="story-sequence" id="how-it-works">
         <article className="story-panel story-upload">
-          <div className="story-copy"><span>01</span><h2>Bring the rough cut.</h2><p>Upload a two-minute pitch video and your current deck. Three minutes and 24 MB maximum. No studio polish required.</p></div>
+          <div className="story-copy"><span>01</span><h2>Bring the rough cut.</h2><p>Upload a two-minute pitch video. Add a deck only if it helps. Three minutes and 24 MB maximum. No studio polish required.</p></div>
           <div className="upload-specimen"><FileVideo aria-hidden="true" /><div><strong>pitch-v7.mp4</strong><span>Deck attached / ready for panel</span></div><b>100%</b></div>
         </article>
         <article className="story-panel story-pressure">

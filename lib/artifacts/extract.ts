@@ -28,15 +28,15 @@ export async function extractPitchArtifacts({
   videoMimeType,
   videoFileName
 }: {
-  deck: Uint8Array;
-  deckMimeType: string;
+  deck?: Uint8Array;
+  deckMimeType?: string;
   video: Uint8Array;
   videoMimeType: string;
   videoFileName: string;
 }): Promise<ArtifactExtraction> {
   assertVideoSignature(video, videoMimeType);
   const [deckText, transcript] = await Promise.all([
-    extractDeckText(deck, deckMimeType),
+    deck && deckMimeType ? extractDeckText(deck, deckMimeType) : Promise.resolve(""),
     transcribePitchVideo(video, videoMimeType, videoFileName)
   ]);
 
