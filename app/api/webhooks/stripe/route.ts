@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
 import { billingOffers, findOfferByPriceId, getConfiguredOffer, offerIdSchema } from "@/lib/billing/catalog";
+import { hasActiveDispute, objectId, requirePositiveAmount } from "@/lib/billing/reversals";
 import { getStripe } from "@/lib/stripe";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
   }
 
+  const configuredLivemode = stripeKeyLivemode(process.env.STRIPE_SECRET_KEY);
+  if (configuredLivemode !== null && event.livemode !== configuredLivemode) {
+    return NextResponse.json({ error: "Stripe event mode does not match this deployment." }, { status: 400 });
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -49,6 +55,22 @@ export async function POST(request: Request) {
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
         await syncSubscription(event.data.object);
+        break;
+      case "refund.created":
+      case "refund.failed":
+      case "refund.updated": {
+        const chargeId = objectId(event.data.object.charge);
+        if (chargeId) await reconcileChargeLiability(event, chargeId);
+        break;
+      }
+      case "charge.refunded":
+        await reconcileChargeLiability(event, event.data.object.id);
+        break;
+      case "charge.dispute.created":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated":
+      case "charge.dispute.closed":
+        await reconcileChargeLiability(event, objectId(event.data.object.charge)!);
         break;
       default:
         break;
@@ -100,7 +122,10 @@ async function fulfillPackCheckout(event: Stripe.Event, session: Stripe.Checkout
   const expiresAt = new Date();
   expiresAt.setUTCMonth(expiresAt.getUTCMonth() + (configuredOffer.expiresAfterMonths ?? 12));
 
-  const { error } = await admin.rpc("process_stripe_credit_event", {
+  const paymentIntentId = objectId(session.payment_intent);
+  if (!paymentIntentId) throw new Error("Paid Checkout Session has no PaymentIntent.");
+
+  const { error } = await admin.rpc("process_stripe_fulfillment_event", {
     p_event_id: event.id,
     p_event_type: event.type,
     p_object_id: session.id,
@@ -109,6 +134,9 @@ async function fulfillPackCheckout(event: Stripe.Event, session: Stripe.Checkout
     p_source: configuredOffer.creditSource,
     p_quantity: configuredOffer.credits,
     p_external_ref: session.id,
+    p_payment_intent_id: paymentIntentId,
+    p_amount_paid: requirePositiveAmount(session.amount_total, "Checkout amount"),
+    p_currency: session.currency,
     p_expires_at: expiresAt.toISOString(),
     p_metadata: { offer_id: configuredOffer.id, price_id: configuredOffer.priceId }
   });
@@ -147,7 +175,20 @@ async function fulfillSubscriptionInvoice(event: Stripe.Event, invoice: Stripe.I
     .single();
   if (accountError) throw accountError;
 
-  const { error } = await admin.rpc("process_stripe_credit_event", {
+  const payments = await getStripe()!.invoicePayments.list({
+    invoice: invoice.id,
+    status: "paid",
+    limit: 10
+  });
+  const paymentIntentIds = payments.data.flatMap((payment) => {
+    const id = objectId(payment.payment.payment_intent);
+    return id ? [id] : [];
+  });
+  if (paymentIntentIds.length !== 1) {
+    throw new Error("Builder invoice must have exactly one paid PaymentIntent.");
+  }
+
+  const { error } = await admin.rpc("process_stripe_fulfillment_event", {
     p_event_id: event.id,
     p_event_type: event.type,
     p_object_id: invoice.id,
@@ -156,8 +197,41 @@ async function fulfillSubscriptionInvoice(event: Stripe.Event, invoice: Stripe.I
     p_source: billingOffers.builder.creditSource,
     p_quantity: billingOffers.builder.credits,
     p_external_ref: invoice.id,
+    p_payment_intent_id: paymentIntentIds[0],
+    p_amount_paid: requirePositiveAmount(invoice.amount_paid, "Invoice amount"),
+    p_currency: invoice.currency,
     p_expires_at: null,
     p_metadata: { offer_id: "builder", price_id: builder.priceId, billing_reason: invoice.billing_reason }
+  });
+  if (error) throw error;
+}
+
+async function reconcileChargeLiability(event: Stripe.Event, chargeId: string) {
+  const stripe = getStripe()!;
+  const admin = requireAdmin();
+  const [charge, disputes] = await Promise.all([
+    stripe.charges.retrieve(chargeId),
+    stripe.disputes.list({ charge: chargeId, limit: 100 })
+  ]);
+  const paymentIntentId = objectId(charge.payment_intent);
+  if (!paymentIntentId) {
+    throw new Error("Refunded or disputed charge has no PaymentIntent.");
+  }
+
+  const { error } = await admin.rpc("reconcile_stripe_credit_reversal", {
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_object_id: charge.id,
+    p_livemode: event.livemode,
+    p_payment_intent_id: paymentIntentId,
+    p_refunded_amount: charge.amount_refunded,
+    p_disputed: hasActiveDispute(disputes.data),
+    p_metadata: {
+      charge_id: charge.id,
+      refunded_amount: charge.amount_refunded,
+      charge_amount: charge.amount,
+      dispute_ids: disputes.data.map((dispute) => dispute.id)
+    }
   });
   if (error) throw error;
 }
@@ -201,7 +275,8 @@ function requireAdmin() {
   return admin;
 }
 
-function objectId(value: string | { id: string } | null | undefined) {
-  if (!value) return null;
-  return typeof value === "string" ? value : value.id;
+function stripeKeyLivemode(secretKey: string | undefined) {
+  if (secretKey?.startsWith("sk_live_") || secretKey?.startsWith("rk_live_")) return true;
+  if (secretKey?.startsWith("sk_test_") || secretKey?.startsWith("rk_test_")) return false;
+  return null;
 }
