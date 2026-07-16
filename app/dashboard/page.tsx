@@ -12,6 +12,7 @@ export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
   let submissions: DashboardSubmission[] = demoSubmissions;
   let demoMode = true;
+  let premiumCredits = 0;
 
   if (supabase) {
     const {
@@ -23,12 +24,25 @@ export default async function DashboardPage() {
     }
 
     demoMode = false;
-    const { data } = await supabase
-      .from("submissions")
-      .select("id,startup_name,created_at,status,reports(id,content)")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+    const [submissionResult, entitlementResult] = await Promise.all([
+      supabase
+        .from("submissions")
+        .select("id,startup_name,created_at,status,reports(id,content)")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("entitlement_summary")
+        .select("premium_credits")
+        .eq("user_id", user.id)
+        .maybeSingle()
+    ]);
+
+    if (submissionResult.error) throw submissionResult.error;
+    if (entitlementResult.error) throw entitlementResult.error;
+
+    const data = submissionResult.data;
+    premiumCredits = entitlementResult.data?.premium_credits ?? 0;
 
     submissions =
       data?.map((item) => {
@@ -57,6 +71,7 @@ export default async function DashboardPage() {
         <div className="workspace-stats">
           <div><strong>{submissions.length}</strong><span>Total pitches</span></div>
           <div><strong>{submissions.filter((item) => item.status === "complete").length}</strong><span>Reports ready</span></div>
+          <div><strong>{premiumCredits}</strong><span>Premium pitches</span></div>
           <div><strong>{submissions[0]?.overallScore ?? "N/A"}</strong><span>Latest score</span></div>
         </div>
       </div>
