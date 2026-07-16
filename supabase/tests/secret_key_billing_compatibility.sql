@@ -34,4 +34,17 @@ begin
   end loop;
 end $$;
 
+do $$
+begin
+  if not coalesce(
+    (select c.reloptions @> array['security_invoker=true']
+     from pg_class c
+     join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'entitlement_summary'),
+    false
+  ) then
+    raise exception 'entitlement_summary must enforce underlying RLS as security invoker';
+  end if;
+end $$;
+
 rollback;
