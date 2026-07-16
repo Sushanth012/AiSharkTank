@@ -10,6 +10,9 @@ deck, enter startup details, and receive a saved investor-style report.
 - Five-minute pitch upload flow with a 24 MB processing cap.
 - Required pitch deck upload, with PDF preferred and PPTX accepted.
 - Saved report dashboard with per-user access.
+- One lifetime free rehearsal plus paid premium pitch passes.
+- Stripe-hosted Checkout, subscription management, and compensating refund/dispute accounting.
+- Durable background processing with bounded retries and credit-safe settlement.
 - AI investor report with scores, investor decisions, follow-up questions,
   milestones, and valuation framing.
 - Delete flow that removes the report, submission, and associated uploaded files.
@@ -59,3 +62,5 @@ pnpm dev
   with assumptions and confidence, not financial advice.
 - Billing and premium UI stay disabled until `NEXT_PUBLIC_BILLING_ENABLED` and
   `NEXT_PUBLIC_PREMIUM_ENABLED` are explicitly enabled after webhook testing.
+- Deploy in two phases: apply pending Supabase migrations, verify the preview purchase and
+  webhook path, then promote that exact Vercel artifact and enable the production flags.
