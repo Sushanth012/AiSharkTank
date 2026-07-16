@@ -7,7 +7,7 @@ deck, enter startup details, and receive a saved investor-style report.
 ## MVP Features
 
 - Account-based workspace with Supabase Auth.
-- Five-minute pitch upload flow with a 24 MB processing cap.
+- Two-minute recommended pitch flow with a three-minute duration limit and 24 MB processing cap.
 - Required pitch deck upload, with PDF preferred and PPTX accepted.
 - Saved report dashboard with per-user access.
 - One lifetime free rehearsal plus paid premium pitch passes.
@@ -33,7 +33,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SECRET_KEY=
 DEEPSEEK_API_KEY=
-OPENAI_API_KEY=
+GROQ_API_KEY=
 CRON_SECRET=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
@@ -53,7 +53,7 @@ pnpm dev
   The worker claims jobs atomically, heartbeats its lease, retries transient failures, and
   releases the reserved credit when processing cannot complete.
 - The worker downloads private artifacts itself, validates file signatures, extracts bounded
-  PDF/PPTX text, transcribes the uploaded video, records AI cost telemetry, and saves the report
+  PDF/PPTX text, transcribes the uploaded video through Groq Whisper, records AI cost telemetry, and saves the report
   through service-role-only settlement functions.
 - A successful submission starts one durable job after the `202` response, so founders do not wait
   on generation. `vercel.json` also runs `/api/jobs/process` daily as a Hobby-plan reconciliation

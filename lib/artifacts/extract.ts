@@ -76,7 +76,7 @@ export async function transcribePitchVideo(
   mimeType: string,
   fileName: string
 ) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     throw new ArtifactValidationError("Video transcription is not configured.");
   }
   if (bytes.byteLength > MAX_TRANSCRIPTION_BYTES) {
@@ -85,10 +85,13 @@ export async function transcribePitchVideo(
     );
   }
 
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1"
+  });
   const response = await client.audio.transcriptions.create({
     file: await toFile(bytes, fileName, { type: mimeType }),
-    model: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "gpt-4o-mini-transcribe",
+    model: process.env.GROQ_TRANSCRIPTION_MODEL ?? "whisper-large-v3-turbo",
     response_format: "text"
   });
 
