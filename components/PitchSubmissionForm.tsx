@@ -2,14 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileUp, Send } from "lucide-react";
+import Link from "next/link";
+import { FileUp, Send, Sparkles, Ticket } from "lucide-react";
 import { MAX_DECK_BYTES, MAX_VIDEO_BYTES, formatBytes } from "@/lib/config";
+import {
+  resolvePitchTierAvailability,
+  type EntitlementSummary
+} from "@/lib/billing/entitlements";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { pollPitchJob } from "@/lib/jobs/polling";
 import type { StartupProfile } from "@/lib/types";
 
-export function PitchSubmissionForm() {
+type PitchSubmissionFormProps = {
+  entitlements: EntitlementSummary;
+  premiumEnabled: boolean;
+};
+
+export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmissionFormProps) {
   const router = useRouter();
+  const availability = resolvePitchTierAvailability(entitlements, premiumEnabled);
+  const [tier, setTier] = useState<"basic" | "premium" | null>(availability.defaultTier);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
@@ -101,7 +113,8 @@ export function PitchSubmissionForm() {
           submissionId,
           videoPath,
           deckPath,
-          profile: profileFromForm(formData)
+          profile: profileFromForm(formData),
+          tier: stringFromForm(formData, "tier")
         })
       });
     } else {
@@ -177,6 +190,53 @@ export function PitchSubmissionForm() {
           </div>
         </div>
       ) : null}
+
+      <fieldset className="review-pass-fieldset">
+        <legend>Choose the room</legend>
+        <p className="review-pass-intro">The database checks your pass again before the panel starts.</p>
+        <div className="review-pass-grid">
+          <label className={`review-pass ${tier === "basic" ? "selected" : ""} ${!availability.basicAvailable ? "unavailable" : ""}`}>
+            <input
+              checked={tier === "basic"}
+              disabled={!availability.basicAvailable || loading}
+              name="tier"
+              onChange={() => setTier("basic")}
+              type="radio"
+              value="basic"
+            />
+            <span className="pass-icon"><Ticket size={20} aria-hidden="true" /></span>
+            <span className="pass-copy">
+              <strong>First rehearsal</strong>
+              <small>One efficient panel review</small>
+            </span>
+            <span className="pass-stamp">{availability.basicAvailable ? "Free pass" : "Used"}</span>
+          </label>
+
+          <label className={`review-pass premium ${tier === "premium" ? "selected" : ""} ${!availability.premiumAvailable ? "unavailable" : ""}`}>
+            <input
+              checked={tier === "premium"}
+              disabled={!availability.premiumAvailable || loading}
+              name="tier"
+              onChange={() => setTier("premium")}
+              type="radio"
+              value="premium"
+            />
+            <span className="pass-icon"><Sparkles size={20} aria-hidden="true" /></span>
+            <span className="pass-copy">
+              <strong>Full investor room</strong>
+              <small>Five specialist lenses + synthesis</small>
+            </span>
+            <span className="pass-stamp">
+              {entitlements.creditDebt > 0 ? "Balance due" : `${entitlements.premiumCredits} credit${entitlements.premiumCredits === 1 ? "" : "s"}`}
+            </span>
+          </label>
+        </div>
+        {!availability.basicAvailable && !availability.premiumAvailable ? (
+          <p className="review-pass-action">
+            You need a premium pass before starting another room. <Link href="/pricing">See passes</Link>
+          </p>
+        ) : null}
+      </fieldset>
 
       <div className="form-grid">
         <div className="field">
@@ -265,7 +325,7 @@ export function PitchSubmissionForm() {
         </div>
       </div>
 
-      <button className="button primary" disabled={loading} type="submit" aria-busy={loading}>
+      <button className="button primary" disabled={loading || !tier} type="submit" aria-busy={loading}>
         <Send size={18} aria-hidden="true" />
         {phase === "uploading" ? "Uploading your pitch..." : phase === "processing" ? "Panel reviewing..." : "Generate investor report"}
       </button>
