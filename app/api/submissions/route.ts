@@ -21,6 +21,7 @@ const requiredShortText = z.string().trim().min(1).max(200);
 const optionalShortText = z.string().trim().max(500).optional().default("");
 const profileSchema = z
   .object({
+    reviewMode: z.enum(["investor", "yc"]).optional().default("investor"),
     startupName: requiredShortText,
     founderName: requiredShortText,
     industry: requiredShortText,
@@ -29,12 +30,22 @@ const profileSchema = z
     targetCustomer: z.string().trim().min(1).max(2_000),
     businessModel: z.string().trim().min(1).max(2_000),
     traction: optionalShortText,
+    founderFit: z.string().trim().max(2_000).optional().default(""),
     fundingGoal: optionalShortText,
     demoLink: z.string().trim().max(2_000).optional().default(""),
     deckNotes: z.string().trim().max(8_000).optional().default("")
   })
   .refine((profile) => JSON.stringify(profile).length <= 20_000, {
     message: "Startup profile is too large."
+  })
+  .superRefine((profile, context) => {
+    if (profile.reviewMode !== "yc") return;
+    if (!profile.traction) {
+      context.addIssue({ code: "custom", path: ["traction"], message: "YC mode requires evidence that people want the product." });
+    }
+    if (!profile.founderFit) {
+      context.addIssue({ code: "custom", path: ["founderFit"], message: "YC mode requires the founder advantage." });
+    }
   });
 
 const directSubmissionSchema = z.object({
@@ -86,6 +97,7 @@ export async function POST(request: Request) {
   }
 
   const parsedProfile = profileSchema.safeParse({
+    reviewMode: stringFromForm(formData, "reviewMode") || "investor",
     startupName: stringFromForm(formData, "startupName"),
     founderName: stringFromForm(formData, "founderName"),
     industry: stringFromForm(formData, "industry"),
@@ -94,6 +106,7 @@ export async function POST(request: Request) {
     targetCustomer: stringFromForm(formData, "targetCustomer"),
     businessModel: stringFromForm(formData, "businessModel"),
     traction: stringFromForm(formData, "traction"),
+    founderFit: stringFromForm(formData, "founderFit"),
     fundingGoal: stringFromForm(formData, "fundingGoal"),
     demoLink: stringFromForm(formData, "demoLink"),
     deckNotes: stringFromForm(formData, "deckNotes")

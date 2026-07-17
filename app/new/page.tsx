@@ -63,17 +63,16 @@ export default async function NewPitchPage() {
           </section>
           <section className="card">
             <span className="aside-label">On the scorecard</span>
-            <h3>What gets tested</h3>
+            <h3>Every review checks</h3>
             <ul className="list">
               <li>Problem clarity and customer urgency</li>
-              <li>Market, competition, business model, and moat</li>
-              <li>Traction, funding ask, and next milestones</li>
-              <li>Founder delivery signals from the pitch transcript</li>
+              <li>Founder fit and evidence people want it</li>
+              <li>A clear, believable story in the video</li>
+              <li>The biggest reason a reviewer may say no</li>
             </ul>
           </section>
           <section className="callout">
-            Valuation ranges are framed as practice estimates with confidence and assumptions,
-            not formal financial advice.
+            PitchTank gives practice feedback, not an investment decision or a prediction from YC.
           </section>
         </aside>
       </div>

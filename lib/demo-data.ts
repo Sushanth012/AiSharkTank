@@ -1,6 +1,7 @@
-import type { DashboardSubmission, PitchReport, StartupProfile } from "@/lib/types";
+import type { DashboardSubmission, PitchReport, StartupProfile, YcEvaluation } from "@/lib/types";
 
 export const sampleProfile: StartupProfile = {
+  reviewMode: "investor",
   startupName: "CampusCart",
   founderName: "Maya Chen",
   industry: "Consumer Marketplace",
@@ -10,15 +11,52 @@ export const sampleProfile: StartupProfile = {
   targetCustomer: "College students and parents at large residential universities.",
   businessModel: "Transaction fee plus promoted listings for local vendors.",
   traction: "Pilot waitlist of 430 students across two campuses.",
+  founderFit: "The founding team has lived through campus move-outs and has already organized student resale groups.",
   fundingGoal: "$250K to expand to ten universities.",
   demoLink: "https://example.com",
   deckNotes: "Deck covers problem, TAM, launch plan, early demand, and unit economics."
+};
+
+export const demoYcEvaluation: YcEvaluation = {
+  verdict: "Revise before submitting",
+  ideaClarity: {
+    score: 88,
+    answer: "Yes. CampusCart is easy to describe in one sentence.",
+    simpleExplanation: "A reviewer can quickly tell what the product does and who it helps.",
+    nextStep: "Open the video with one sentence: CampusCart helps students buy and sell dorm items during move-in and move-out."
+  },
+  problemUrgency: {
+    score: 82,
+    answer: "The move-out deadline creates a real and time-sensitive problem.",
+    simpleExplanation: "Students must get rid of useful items quickly, so waiting has a clear cost.",
+    nextStep: "Tell one short story about a student facing this problem the week before move-out."
+  },
+  founderFit: {
+    score: 70,
+    answer: "The team understands campus life, but the video needs stronger proof that they are uniquely prepared.",
+    simpleExplanation: "The idea fits the founders, but the application should show what they know or can do that others cannot.",
+    nextStep: "Add one specific example of the team organizing student resale or building for campus communities."
+  },
+  evidence: {
+    score: 76,
+    answer: "A 430-student waitlist is promising, but completed transactions would be stronger evidence.",
+    simpleExplanation: "People have shown interest, but the application needs proof that they will actually use or pay for the product.",
+    nextStep: "Run a small pilot and include listings, completed sales, and repeat users in the video."
+  },
+  rejectionRisk: {
+    score: 64,
+    answer: "YC could see this as a seasonal marketplace that is difficult to expand campus by campus.",
+    simpleExplanation: "The biggest concern is whether the product stays useful all year and can grow without lots of manual work.",
+    nextStep: "Explain one off-season use case and show a campus launch process another person can repeat."
+  }
 };
 
 export const demoReport: PitchReport = {
   id: "demo-report",
   startupName: "CampusCart",
   generatedAt: new Date().toISOString(),
+  reviewMode: "investor",
+  ycEvaluation: null,
   overallScore: 82,
   businessScore: 84,
   deliveryScore: 78,
@@ -57,6 +95,20 @@ export const demoReport: PitchReport = {
     "Customer acquisition could become labor-intensive campus by campus.",
     "Current valuation case depends on assumptions that need more operating proof."
   ],
+  riskGuidance: [
+    {
+      simpleExplanation: "The marketplace may feel empty during months when students are not moving in or out.",
+      nextStep: "Test one useful off-season category and measure whether students keep buying and selling."
+    },
+    {
+      simpleExplanation: "Launching at each new campus could require too much manual work and too many ambassadors.",
+      nextStep: "Write one repeatable campus launch checklist and test it at three schools."
+    },
+    {
+      simpleExplanation: "The company value is based on predictions that have not been proven with real sales yet.",
+      nextStep: "Use pilot sales, fees, and repeat-use numbers to support the next valuation discussion."
+    }
+  ],
   nextMilestones: [
     "Run a full move-out pilot and publish sell-through, GMV, and repeat listing data.",
     "Validate ambassador acquisition cost across at least three campuses.",
@@ -74,6 +126,7 @@ export const demoReport: PitchReport = {
       score: 81,
       thesis:
         "The margin path can work if take rate and campus operations stay lean, but I need one complete season of unit economics.",
+      plainLanguage: "The business could make money, but you need to prove how much is left after the costs of running one campus.",
       signatureAdvice:
         "Show the exact path from campus GMV to cash in the bank before asking me to fund expansion.",
       questions: [
@@ -92,6 +145,7 @@ export const demoReport: PitchReport = {
       score: 72,
       thesis:
         "The product solves a real problem, but the current pitch does not yet show a durable technical moat.",
+      plainLanguage: "The problem is real, but the pitch does not explain what would stop a larger company from copying the product.",
       signatureAdvice:
         "Prove that the product gets better and cheaper to run every time a campus joins.",
       questions: [
@@ -110,6 +164,7 @@ export const demoReport: PitchReport = {
       score: 89,
       thesis:
         "The student positioning is crisp and the timing creates natural urgency. This could spread quickly with the right campus playbook.",
+      plainLanguage: "Students can quickly understand why they need this, but growth depends on a launch process that works at every school.",
       signatureAdvice:
         "Lead with the student who needs this tomorrow, then make every number support that story.",
       questions: [
@@ -128,6 +183,7 @@ export const demoReport: PitchReport = {
       score: 86,
       thesis:
         "CampusCart has the beginnings of a brand students can identify with, especially when the message stays local and useful rather than generic.",
+      plainLanguage: "The brand can feel made for students if it keeps using local campus language and solves a practical problem.",
       signatureAdvice:
         "Build campus identity into the product so students feel they are joining something, not downloading another marketplace.",
       questions: [
@@ -146,6 +202,7 @@ export const demoReport: PitchReport = {
       score: 80,
       thesis:
         "The idea is immediately understandable, but the pitch needs to demonstrate a smoother buyer and seller experience before scaling the launch plan.",
+      plainLanguage: "People understand the idea, but the first sale needs to feel much easier before the company expands.",
       signatureAdvice:
         "Make the first transaction feel effortless, because that is what turns a clever idea into a habit.",
       questions: [

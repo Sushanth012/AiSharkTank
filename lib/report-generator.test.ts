@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyInvestorRoster,
+  buildPrompt,
   callWithRetry,
   isRetryableAiError,
   pitchReportSchema,
   stripCodeFence,
   telemetryErrorCode
 } from "./report-generator";
-import { demoReport } from "./demo-data";
+import { demoReport, sampleProfile } from "./demo-data";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -44,6 +45,29 @@ describe("AI provider boundaries", () => {
     expect(stripCodeFence("```json\n{\"ok\":true}\n```")).toBe('{"ok":true}');
     expect(() => pitchReportSchema.parse({ overallScore: 101 })).toThrow();
     expect(telemetryErrorCode(new SyntaxError("bad json"))).toBe("invalid_provider_output");
+  });
+
+  it("builds a dedicated YC application prompt around the five application questions", () => {
+    const prompt = JSON.parse(buildPrompt({
+      profile: { ...sampleProfile, reviewMode: "yc" },
+      transcript: "We help students sell dorm items before move-out.",
+      deckText: ""
+    }));
+
+    expect(prompt.task).toContain("YC application video");
+    expect(prompt.constraints.join(" ")).toContain("Why are these founders right");
+    expect(prompt.outputShape.ycEvaluation.ideaClarity.nextStep).toBe("string");
+    expect(prompt.profile.reviewMode).toBe("yc");
+  });
+
+  it("keeps investor reports backward compatible and validates the new guidance fields", () => {
+    const parsed = pitchReportSchema.parse(demoReport);
+    const prompt = JSON.parse(buildPrompt({ profile: sampleProfile, transcript: "", deckText: "" }));
+
+    expect(parsed.reviewMode).toBe("investor");
+    expect(parsed.ycEvaluation).toBeNull();
+    expect(parsed.riskGuidance).toHaveLength(parsed.risks.length);
+    expect(prompt.outputShape.ycEvaluation).toBeNull();
   });
 
   it("overwrites provider-supplied investor identities with the fictional product roster", () => {
