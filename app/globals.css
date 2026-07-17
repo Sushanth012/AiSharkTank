@@ -158,6 +158,18 @@ mark { color: inherit; background: linear-gradient(transparent 62%, var(--lime) 
 .auth-layout { display: grid; grid-template-columns: 1.08fr .92fr; min-height: calc(100vh - 150px); margin: 40px 0 90px; overflow: hidden; border: 1px solid var(--ink); border-radius: var(--radius-card); }
 .auth-story { position: relative; display: flex; flex-direction: column; justify-content: center; padding: clamp(45px, 7vw, 110px); color: var(--paper); background: var(--ink); }.auth-story::after { content: "REHEARSE / REWRITE / RETURN"; position: absolute; right: -150px; bottom: 55px; color: rgba(200,255,61,.15); font-family: var(--font-display); font-size: 46px; transform: rotate(-90deg); }.auth-story h1 { max-width: 700px; font-size: clamp(55px, 7vw, 100px); }.auth-story > p { max-width: 600px; color: #b7bbb1; font-size: 19px; }.auth-story ul { display: grid; gap: 10px; margin: 22px 0; padding: 0; list-style: none; }.auth-story li { display: flex; gap: 10px; align-items: center; }.auth-story li svg { color: var(--lime); }.auth-story blockquote { margin: 50px 0 0; padding-left: 20px; border-left: 5px solid var(--lime); font-size: 20px; font-weight: 700; }.auth-story blockquote span { display: block; margin-top: 10px; color: #a4a79f; font-family: var(--font-mono); font-size: 11px; }
 .auth-card { display: flex; flex-direction: column; justify-content: center; border: 0; border-radius: 0; }.auth-card .section-title h1 { font-size: 48px; }.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--fog); border-radius: 10px; }.auth-tabs button { min-height: 44px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; }.auth-tabs button.active { color: var(--paper); background: var(--ink); }
+.account-layout, .admin-layout { display: grid; gap: 38px; padding: 54px 0 80px; }
+.account-layout > div:first-child, .admin-heading { max-width: 760px; }
+.account-layout h1, .admin-layout h1 { max-width: 900px; font-size: clamp(52px, 8vw, 108px); line-height: .86; }
+.account-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 20px; }
+.account-card { display: grid; align-content: start; gap: 22px; }
+.account-card h2 { overflow-wrap: anywhere; }
+.account-balance { display: flex; gap: 16px; align-items: center; padding: 24px; color: var(--ink); background: var(--lime); border: 1px solid var(--ink); border-radius: var(--radius-card); }
+.account-balance strong { font-family: var(--font-display); font-size: 54px; line-height: 1; }
+.account-balance span { max-width: 150px; font-weight: 700; }
+.account-actions form { margin: 0; }
+.admin-layout { grid-template-columns: minmax(0, 1.1fr) minmax(380px, .9fr); align-items: start; }
+.admin-credit-form { display: grid; gap: 22px; border-top: 8px solid var(--lime); }
 
 /* Pricing */
 .pricing-heading { padding: 70px 30px 20px; }.pricing-promise { display: flex; gap: 10px; max-width: 320px; padding: 18px; background: var(--lime); border: 1px solid var(--ink); border-radius: var(--radius-control); font-weight: 750; }
@@ -225,6 +237,7 @@ mark { color: inherit; background: linear-gradient(transparent 62%, var(--lime) 
 }
 
 @media (max-width: 760px) {
+  .account-grid, .admin-layout { grid-template-columns: 1fr; }
   .page, .topbar, .site-footer { width: min(calc(100% - 24px), var(--max)); }
   .topbar { min-height: 64px; margin-top: 10px; padding: 0 8px 0 12px; }.logo-word { font-size: 14px; }.logo-mark { width: 29px; height: 29px; }.nav { gap: 0; overflow-x: auto; }.nav-link { min-height: 42px; padding: 0 8px; font-size: 12px; }.nav-cta { min-height: 40px; padding: 0 10px; font-size: 0; }.nav-cta svg { width: 17px; height: 17px; }
   .pressure-hero { min-height: auto; padding: 70px 12px 80px; }.pressure-hero h1 { font-size: clamp(54px, 16vw, 78px); }.hero-lede { font-size: 18px; }.hero-actions { align-items: stretch; }.hero-actions .button { width: 100%; }

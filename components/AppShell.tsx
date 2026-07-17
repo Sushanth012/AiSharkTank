@@ -12,7 +12,7 @@ export function AppShell({ children, variant = "marketing" }: { children: React.
           <Link className="nav-link" href="/dashboard">Workspace</Link>
           <Link className="nav-link" href="/new">New pitch</Link>
           <Link className="nav-link" href="/pricing">Pricing</Link>
-          <Link className="nav-cta" href="/auth">{variant === "workspace" ? "Account" : "Enter the room"}<ArrowUpRight size={15} aria-hidden="true" /></Link>
+          <Link className="nav-cta" href={variant === "workspace" ? "/account" : "/auth"}>{variant === "workspace" ? "Account" : "Enter the room"}<ArrowUpRight size={15} aria-hidden="true" /></Link>
         </nav>
       </header>
       <main className="page" id="main-content">{children}</main>

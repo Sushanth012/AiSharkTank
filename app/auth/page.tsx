@@ -1,8 +1,18 @@
 import { AppShell } from "@/components/AppShell";
 import { AuthForm } from "@/components/AuthForm";
 import { Check, MessageSquareQuote } from "lucide-react";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function AuthPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AuthPage() {
+  const supabase = await createSupabaseServerClient();
+  if (supabase) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) redirect("/account");
+  }
+
   return (
     <AppShell>
       <section className="auth-layout">
