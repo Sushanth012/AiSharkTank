@@ -119,8 +119,9 @@ export function ReportView({ report }: { report: PitchReport }) {
             </ul>
           </section>
           <section className="card warning-card">
-            <p className="eyebrow">Fix this</p>
-            <h2>What could trip you up</h2>
+            <p className="eyebrow">Plan for this</p>
+            <h2>Problems to solve before they grow</h2>
+            <p>These are things that could slow down the startup. Use them as a to-do list, not as a reason to give up.</p>
             <ul className="list">
               {report.risks.map((item) => <li key={item}>{item}</li>)}
             </ul>

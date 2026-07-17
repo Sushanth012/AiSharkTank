@@ -203,6 +203,8 @@ function buildPrompt({ profile, transcript, deckText }: GenerateReportInput) {
       "Write for a high school student. Use short sentences, common words, and an encouraging but honest tone.",
       "Keep each explanation to one or two sentences. Every bullet should make one clear point.",
       "Avoid unexplained business jargon. If a term such as unit economics, moat, liquidity, GMV, or go-to-market is necessary, explain it immediately in everyday language.",
+      "Write every risk so a ninth-grade student can understand it without a business class. Do not use phrases such as enterprise sales cycle, burn cash, siloed data, deployment, or repeatable sales process unless you explain them in the same sentence.",
+      "Each risk must clearly answer: what could happen, why that would hurt the startup, and one practical way to reduce the risk. Use everyday words instead of investor shorthand.",
       "Make every piece of criticism actionable: say what is unclear, why it matters, and the next step the founder can take.",
       "Include exactly five investor perspectives in this order: tech and scale, story and sales, money and profit, product and customers, brand and growth.",
       "The report is an educational AI simulation. Never claim that Mark Cuban, Barbara Corcoran, Kevin O’Leary, Lori Greiner, Daymond John, ABC, or Shark Tank reviewed, wrote, approved, or endorsed the feedback.",
