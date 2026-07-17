@@ -6,12 +6,39 @@ import { assertWithinBudget, budgetForRoute, estimateRunCost, modelForRoute } fr
 import type { AiRoute } from "@/lib/ai/models";
 import type { PitchReport, StartupProfile } from "@/lib/types";
 
-type GenerateReportInput = {
+export type GenerateReportInput = {
   profile: StartupProfile;
   transcript?: string;
   deckText?: string;
   tier?: "basic" | "premium";
   onTelemetry?: (telemetry: AiRunTelemetry) => Promise<void>;
+};
+
+export type ReportSection = "core" | "panel" | "evidence" | "yc";
+
+export type ReportSectionRequest = {
+  section: ReportSection;
+  prompt: string;
+  maxTokens: number;
+  attempt: number;
+  signal: AbortSignal;
+};
+
+export type ReportSectionCompletion = {
+  content: string;
+  finishReason: string | null;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+};
+
+export type ReportGenerationDependencies = {
+  completion?: (request: ReportSectionRequest) => Promise<ReportSectionCompletion>;
+  provider?: "deepseek" | "openai";
+  model?: string;
+  timeoutMs?: number;
+  maxAttempts?: number;
+  sleep?: (durationMs: number) => Promise<void>;
 };
 
 export type AiRunTelemetry = {
@@ -24,102 +51,84 @@ export type AiRunTelemetry = {
   outputTokens: number;
   estimatedCostUsd: number;
   latencyMs: number;
+  section: ReportSection;
+  attempt: number;
+  responseCharacters: number;
+  finishReason?: string;
+  failureReason?: string;
   errorCode?: string;
 };
 
-export async function generateInvestmentReport(input: GenerateReportInput): Promise<PitchReport> {
-  if (!isDeepSeekConfigured && !isOpenAIConfigured) {
+const DEFAULT_SECTION_TIMEOUT_MS = 90_000;
+const DEFAULT_SECTION_ATTEMPTS = 2;
+
+export async function generateInvestmentReport(
+  input: GenerateReportInput,
+  dependencies: ReportGenerationDependencies = {}
+): Promise<PitchReport> {
+  if (!dependencies.completion && !isDeepSeekConfigured && !isOpenAIConfigured) {
     return personalizeDemoReport(input.profile);
   }
 
-  const usingDeepSeek = isDeepSeekConfigured;
-  const route: AiRoute = input.tier === "premium" ? "premium_synthesis" : "basic";
-  const provider = usingDeepSeek ? "deepseek" : "openai";
-  const model = usingDeepSeek ? modelForRoute(route) : process.env.OPENAI_MODEL ?? "gpt-5.5";
-  const prompt = buildPrompt(input);
-  const estimatedInputTokens = Math.ceil(prompt.length / 4);
-  let estimatedCostUsd = 0;
+  const usingDeepSeek = dependencies.provider
+    ? dependencies.provider === "deepseek"
+    : isDeepSeekConfigured;
+  const provider = dependencies.provider ?? (usingDeepSeek ? "deepseek" : "openai");
+  const primaryRoute: AiRoute = input.tier === "premium" ? "premium_synthesis" : "basic";
+  const model = dependencies.model ?? (usingDeepSeek
+    ? modelForRoute(primaryRoute)
+    : process.env.OPENAI_MODEL ?? "gpt-5.5");
+  const specs = sectionSpecsFor(input);
+  const completion = dependencies.completion ?? createProviderCompletion({ provider, model });
+  const maxAttempts = dependencies.maxAttempts ?? DEFAULT_SECTION_ATTEMPTS;
 
   if (usingDeepSeek) {
-    estimatedCostUsd = estimateRunCost({ model, inputTokens: estimatedInputTokens, outputTokens: 6_000 });
-    assertWithinBudget(estimatedCostUsd, budgetForRoute(route));
-  }
-
-  const client = new OpenAI({
-    apiKey: usingDeepSeek ? process.env.DEEPSEEK_API_KEY : process.env.OPENAI_API_KEY,
-    baseURL: usingDeepSeek ? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com" : undefined
-  });
-  const startedAt = Date.now();
-  try {
-    const response = await callWithRetry(() =>
-      client.chat.completions.create({
+    const maximumCost = specs.reduce((total, spec) => {
+      const prompt = buildSectionPrompt(input, spec.section);
+      return total + estimateRunCost({
         model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a supportive startup pitch coach for high school and college students. Return only one valid JSON object matching the requested shape. Use plain language. Valuation estimates are practice-oriented ranges, not financial advice."
-          },
-          { role: "user", content: prompt }
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 6_000
-      })
-    );
-
-    const content = response.choices[0]?.message.content;
-    if (!content) {
-      throw new Error("The AI provider returned an empty report.");
-    }
-
-    const parsed = pitchReportSchema.parse(JSON.parse(stripCodeFence(content)));
-    if (input.profile.reviewMode === "yc" && !parsed.ycEvaluation) {
-      throw new Error("The AI provider omitted the YC application evaluation.");
-    }
-    const inputTokens = response.usage?.prompt_tokens ?? estimatedInputTokens;
-    const cachedInputTokens = response.usage?.prompt_tokens_details?.cached_tokens ?? 0;
-    const outputTokens = response.usage?.completion_tokens ?? 0;
-
-    if (usingDeepSeek && response.usage) {
-      estimatedCostUsd = estimateRunCost({ model, inputTokens, cachedInputTokens, outputTokens });
-      assertWithinBudget(estimatedCostUsd, budgetForRoute(route));
-    }
-
-    await input.onTelemetry?.({
-      route,
-      provider,
-      model,
-      status: "complete",
-      inputTokens,
-      cachedInputTokens,
-      outputTokens,
-      estimatedCostUsd,
-      latencyMs: Date.now() - startedAt
-    });
-
-    return {
-      ...parsed,
-      id: parsed.id || crypto.randomUUID(),
-      startupName: input.profile.startupName,
-      generatedAt: new Date().toISOString(),
-      reviewMode: input.profile.reviewMode ?? "investor",
-      investorPanel: applyInvestorRoster(parsed.investorPanel)
-    };
-  } catch (error) {
-    await input.onTelemetry?.({
-      route,
-      provider,
-      model,
-      status: error instanceof Error && error.name === "AiBudgetExceededError" ? "budget_exceeded" : "failed",
-      inputTokens: estimatedInputTokens,
-      cachedInputTokens: 0,
-      outputTokens: 0,
-      estimatedCostUsd,
-      latencyMs: Date.now() - startedAt,
-      errorCode: telemetryErrorCode(error)
-    });
-    throw error;
+        inputTokens: Math.ceil(prompt.length / 4),
+        outputTokens: spec.maxTokens
+      });
+    }, 0);
+    assertWithinBudget(maximumCost * maxAttempts, budgetForRoute(primaryRoute));
   }
+
+  const entries = await Promise.all(specs.map(async (spec) => [
+    spec.section,
+    await generateSection({
+      input,
+      section: spec.section,
+      schema: spec.schema,
+      maxTokens: spec.maxTokens,
+      route: routeForSection(input.tier, spec.section),
+      provider,
+      model,
+      completion,
+      timeoutMs: dependencies.timeoutMs ?? sectionTimeoutMs(),
+      maxAttempts,
+      sleep: dependencies.sleep ?? defaultSleep
+    })
+  ] as const));
+  const sections = Object.fromEntries(entries) as Record<ReportSection, unknown>;
+  const core = coreReportSchema.parse(sections.core);
+  const panel = panelReportSchema.parse(sections.panel);
+  const evidence = evidenceReportSchema.parse(sections.evidence);
+  const yc = input.profile.reviewMode === "yc"
+    ? ycReportSchema.parse(sections.yc).ycEvaluation
+    : null;
+
+  return pitchReportSchema.parse({
+    ...core,
+    ...panel,
+    ...evidence,
+    id: crypto.randomUUID(),
+    startupName: input.profile.startupName,
+    generatedAt: new Date().toISOString(),
+    reviewMode: input.profile.reviewMode ?? "investor",
+    ycEvaluation: yc,
+    investorPanel: applyInvestorRoster(panel.investorPanel)
+  });
 }
 
 const decisionSchema = z.enum(["Invest", "Pass", "Invest with Conditions"]);
@@ -130,6 +139,14 @@ const feedbackGuidanceSchema = z.object({
 const ycCriterionSchema = feedbackGuidanceSchema.extend({
   score: z.number().int().min(0).max(100),
   answer: z.string().min(1)
+});
+const ycEvaluationSchema = z.object({
+  verdict: z.enum(["Ready to submit", "Revise before submitting", "Major rewrite needed"]),
+  ideaClarity: ycCriterionSchema,
+  problemUrgency: ycCriterionSchema,
+  founderFit: ycCriterionSchema,
+  evidence: ycCriterionSchema,
+  rejectionRisk: ycCriterionSchema
 });
 
 export const pitchReportSchema = z.object({
@@ -142,14 +159,7 @@ export const pitchReportSchema = z.object({
   recommendation: decisionSchema,
   executiveSummary: z.string().min(1),
   reviewMode: z.enum(["investor", "yc"]).optional().default("investor"),
-  ycEvaluation: z.object({
-    verdict: z.enum(["Ready to submit", "Revise before submitting", "Major rewrite needed"]),
-    ideaClarity: ycCriterionSchema,
-    problemUrgency: ycCriterionSchema,
-    founderFit: ycCriterionSchema,
-    evidence: ycCriterionSchema,
-    rejectionRisk: ycCriterionSchema
-  }).nullable().optional().default(null),
+  ycEvaluation: ycEvaluationSchema.nullable().optional().default(null),
   scores: z.array(
     z.object({
       label: z.string(),
@@ -188,6 +198,292 @@ export const pitchReportSchema = z.object({
   }),
   finalMemo: z.string().min(1)
 });
+
+const coreReportSchema = pitchReportSchema.pick({
+  overallScore: true,
+  businessScore: true,
+  deliveryScore: true,
+  recommendation: true,
+  executiveSummary: true,
+  scores: true,
+  strengths: true,
+  risks: true,
+  riskGuidance: true,
+  nextMilestones: true,
+  finalMemo: true
+}).superRefine((value, context) => {
+  if (value.riskGuidance.length !== value.risks.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["riskGuidance"],
+      message: "Every risk must have matching guidance."
+    });
+  }
+});
+
+const panelReportSchema = pitchReportSchema.pick({ investorPanel: true });
+const evidenceReportSchema = pitchReportSchema.pick({ timeline: true, valuation: true });
+const ycReportSchema = z.object({ ycEvaluation: ycEvaluationSchema });
+
+type SectionSpec = {
+  section: ReportSection;
+  maxTokens: number;
+  schema: z.ZodType;
+};
+
+type GenerateSectionInput = {
+  input: GenerateReportInput;
+  section: ReportSection;
+  schema: z.ZodType;
+  maxTokens: number;
+  route: AiRoute;
+  provider: "deepseek" | "openai";
+  model: string;
+  completion: (request: ReportSectionRequest) => Promise<ReportSectionCompletion>;
+  timeoutMs: number;
+  maxAttempts: number;
+  sleep: (durationMs: number) => Promise<void>;
+};
+
+function sectionSpecsFor(input: GenerateReportInput): SectionSpec[] {
+  const specs: SectionSpec[] = [
+    { section: "core", maxTokens: 2_200, schema: coreReportSchema },
+    { section: "panel", maxTokens: 2_800, schema: panelReportSchema },
+    { section: "evidence", maxTokens: 1_200, schema: evidenceReportSchema }
+  ];
+  if (input.profile.reviewMode === "yc") {
+    specs.push({ section: "yc", maxTokens: 1_600, schema: ycReportSchema });
+  }
+  return specs;
+}
+
+async function generateSection({
+  input,
+  section,
+  schema,
+  maxTokens,
+  route,
+  provider,
+  model,
+  completion,
+  timeoutMs,
+  maxAttempts,
+  sleep
+}: GenerateSectionInput) {
+  const prompt = buildSectionPrompt(input, section);
+  const estimatedInputTokens = Math.ceil(prompt.length / 4);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = Date.now();
+    let response: ReportSectionCompletion | undefined;
+    try {
+      response = await completeWithTimeout(
+        (signal) => completion({ section, prompt, maxTokens, attempt, signal }),
+        timeoutMs
+      );
+      if (!response.content) throw new SectionGenerationError("empty_response");
+      if (response.finishReason === "length") throw new SectionGenerationError("truncated");
+      if (response.finishReason === "content_filter") throw new SectionGenerationError("content_filtered");
+
+      const parsed = schema.parse(JSON.parse(stripCodeFence(response.content)));
+      await input.onTelemetry?.(buildAttemptTelemetry({
+        route,
+        provider,
+        model,
+        section,
+        attempt,
+        status: "complete",
+        response,
+        estimatedInputTokens,
+        maxTokens,
+        latencyMs: Date.now() - startedAt
+      }));
+      return parsed;
+    } catch (error) {
+      lastError = error;
+      const failureReason = sectionFailureReason(error);
+      await input.onTelemetry?.(buildAttemptTelemetry({
+        route,
+        provider,
+        model,
+        section,
+        attempt,
+        status: error instanceof Error && error.name === "AiBudgetExceededError"
+          ? "budget_exceeded"
+          : "failed",
+        response,
+        estimatedInputTokens,
+        maxTokens,
+        latencyMs: Date.now() - startedAt,
+        failureReason,
+        errorCode: sectionErrorCode(error)
+      }));
+
+      if (attempt === maxAttempts || !isRetryableSectionFailure(error)) throw error;
+      await sleep(250 * 2 ** (attempt - 1));
+    }
+  }
+
+  throw lastError ?? new Error(`The ${section} report section could not be generated.`);
+}
+
+function buildAttemptTelemetry({
+  route,
+  provider,
+  model,
+  section,
+  attempt,
+  status,
+  response,
+  estimatedInputTokens,
+  maxTokens,
+  latencyMs,
+  failureReason,
+  errorCode
+}: {
+  route: AiRoute;
+  provider: "deepseek" | "openai";
+  model: string;
+  section: ReportSection;
+  attempt: number;
+  status: AiRunTelemetry["status"];
+  response?: ReportSectionCompletion;
+  estimatedInputTokens: number;
+  maxTokens: number;
+  latencyMs: number;
+  failureReason?: string;
+  errorCode?: string;
+}): AiRunTelemetry {
+  const inputTokens = response?.inputTokens ?? estimatedInputTokens;
+  const cachedInputTokens = response?.cachedInputTokens ?? 0;
+  const outputTokens = response?.outputTokens ?? 0;
+  let estimatedCostUsd = 0;
+  if (provider === "deepseek") {
+    estimatedCostUsd = estimateRunCost({ model, inputTokens, cachedInputTokens, outputTokens });
+    if (!response && status === "complete") {
+      estimatedCostUsd = estimateRunCost({ model, inputTokens, outputTokens: maxTokens });
+    }
+  }
+  return {
+    route,
+    provider,
+    model,
+    status,
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    estimatedCostUsd,
+    latencyMs,
+    section,
+    attempt,
+    responseCharacters: response?.content.length ?? 0,
+    finishReason: response?.finishReason ?? undefined,
+    failureReason,
+    errorCode
+  };
+}
+
+function createProviderCompletion({
+  provider,
+  model
+}: {
+  provider: "deepseek" | "openai";
+  model: string;
+}) {
+  const usingDeepSeek = provider === "deepseek";
+  const client = new OpenAI({
+    apiKey: usingDeepSeek ? process.env.DEEPSEEK_API_KEY : process.env.OPENAI_API_KEY,
+    baseURL: usingDeepSeek ? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com" : undefined,
+    maxRetries: 0
+  });
+
+  return async (request: ReportSectionRequest): Promise<ReportSectionCompletion> => {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a supportive startup pitch coach for high school and college students. Return only one valid JSON object matching the requested shape. Use plain language. Keep every field concise. Valuation estimates are practice-oriented ranges, not financial advice."
+        },
+        { role: "user", content: request.prompt }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: request.maxTokens
+    }, { signal: request.signal });
+    const content = response.choices[0]?.message.content ?? "";
+    return {
+      content,
+      finishReason: response.choices[0]?.finish_reason ?? null,
+      inputTokens: response.usage?.prompt_tokens ?? Math.ceil(request.prompt.length / 4),
+      cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? Math.ceil(content.length / 4)
+    };
+  };
+}
+
+function completeWithTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number) {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new SectionGenerationError("timeout"));
+    }, timeoutMs);
+  });
+  return Promise.race([operation(controller.signal), timedOut]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
+class SectionGenerationError extends Error {
+  constructor(readonly reason: string) {
+    super(`Report section generation failed: ${reason}.`);
+    this.name = "SectionGenerationError";
+  }
+}
+
+function isRetryableSectionFailure(error: unknown) {
+  if (error instanceof SectionGenerationError) {
+    return ["timeout", "truncated", "empty_response"].includes(error.reason);
+  }
+  if (error instanceof SyntaxError || error instanceof z.ZodError) return true;
+  return isRetryableAiError(error);
+}
+
+function sectionFailureReason(error: unknown) {
+  if (error instanceof SectionGenerationError) return error.reason;
+  if (error instanceof SyntaxError) return "invalid_json";
+  if (error instanceof z.ZodError) return "schema_validation";
+  const status = error instanceof Error && "status" in error && typeof error.status === "number"
+    ? error.status
+    : undefined;
+  return status ? `provider_${status}` : "provider_error";
+}
+
+function sectionErrorCode(error: unknown) {
+  const reason = sectionFailureReason(error);
+  if (["truncated", "invalid_json", "schema_validation", "empty_response"].includes(reason)) {
+    return "invalid_provider_output";
+  }
+  if (reason === "timeout") return "provider_timeout";
+  return telemetryErrorCode(error);
+}
+
+function routeForSection(tier: GenerateReportInput["tier"], section: ReportSection): AiRoute {
+  if (tier !== "premium") return "basic";
+  return section === "core" || section === "yc" ? "premium_synthesis" : "premium_evaluator";
+}
+
+function sectionTimeoutMs() {
+  const configured = Number(process.env.AI_SECTION_TIMEOUT_MS ?? DEFAULT_SECTION_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 1_000 ? configured : DEFAULT_SECTION_TIMEOUT_MS;
+}
+
+function defaultSleep(durationMs: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+}
 
 export async function callWithRetry<T>(operation: () => Promise<T>, maxAttempts = 3): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -301,6 +597,52 @@ export function buildPrompt({ profile, transcript, deckText }: GenerateReportInp
     profile,
     transcript: transcript || "Transcript unavailable. Evaluate business and delivery from provided details.",
     deckText: deckText || profile.deckNotes || "Deck text unavailable."
+  });
+}
+
+export function buildSectionPrompt(input: GenerateReportInput, section: ReportSection) {
+  const base = JSON.parse(buildPrompt(input)) as {
+    task: string;
+    constraints: string[];
+    outputShape: Record<string, unknown>;
+    profile: StartupProfile;
+    transcript: string;
+    deckText: string;
+  };
+  const keysBySection: Record<ReportSection, string[]> = {
+    core: [
+      "overallScore",
+      "businessScore",
+      "deliveryScore",
+      "recommendation",
+      "executiveSummary",
+      "scores",
+      "strengths",
+      "risks",
+      "riskGuidance",
+      "nextMilestones",
+      "finalMemo"
+    ],
+    panel: ["investorPanel"],
+    evidence: ["timeline", "valuation"],
+    yc: ["ycEvaluation"]
+  };
+  const outputShape = Object.fromEntries(
+    keysBySection[section].map((key) => [key, base.outputShape[key]])
+  );
+
+  return JSON.stringify({
+    task: `${base.task} Generate only the ${section} section. Do not add fields outside the requested shape.`,
+    section,
+    constraints: [
+      ...base.constraints,
+      "Keep string fields under 60 words and list fields to the minimum useful number of items.",
+      "Return a complete JSON object. Never stop mid-string."
+    ],
+    outputShape,
+    profile: base.profile,
+    transcript: base.transcript,
+    deckText: base.deckText
   });
 }
 

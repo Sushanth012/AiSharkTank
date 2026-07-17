@@ -10,7 +10,7 @@ import {
   telemetryErrorCode,
   type ReportSectionRequest
 } from "./report-generator";
-import { demoReport, sampleProfile } from "./demo-data";
+import { demoReport, demoYcEvaluation, sampleProfile } from "./demo-data";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -158,7 +158,7 @@ describe("parallel report generation", () => {
         status: "failed",
         finishReason: "length",
         failureReason: "truncated",
-        responseCharacters: 49,
+        responseCharacters: 46,
         outputTokens: 600
       }),
       expect.objectContaining({ section: "core", attempt: 2, status: "complete" })
@@ -216,7 +216,109 @@ describe("parallel report generation", () => {
 
     expect(sections).toEqual(["core", "panel", "evidence", "yc"]);
     expect(report.reviewMode).toBe("yc");
-    expect(report.ycEvaluation).toEqual(demoReport.ycEvaluation ?? undefined);
+    expect(report.ycEvaluation).toEqual(demoYcEvaluation);
+  });
+
+  it("retries transient provider errors inside only the failed section", async () => {
+    const attempts = new Map<string, number>();
+    const telemetry: Array<Record<string, unknown>> = [];
+    const report = await generateInvestmentReport(
+      {
+        profile: sampleProfile,
+        transcript: "A short pitch",
+        tier: "premium",
+        onTelemetry: async (event) => { telemetry.push(event as unknown as Record<string, unknown>); }
+      },
+      {
+        completion: async (request) => {
+          const attempt = (attempts.get(request.section) ?? 0) + 1;
+          attempts.set(request.section, attempt);
+          if (request.section === "panel" && attempt === 1) {
+            throw Object.assign(new Error("provider busy"), { status: 503 });
+          }
+          return sectionCompletion(request.section);
+        },
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        maxAttempts: 2,
+        sleep: async () => undefined
+      }
+    );
+
+    expect(report.investorPanel).toHaveLength(5);
+    expect(attempts).toEqual(new Map([["core", 1], ["panel", 2], ["evidence", 1]]));
+    expect(telemetry).toEqual(expect.arrayContaining([
+      expect.objectContaining({ section: "panel", attempt: 1, failureReason: "provider_503" })
+    ]));
+  });
+
+  it("records and stops on a content-filtered response", async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    await expect(generateInvestmentReport(
+      {
+        profile: sampleProfile,
+        transcript: "A short pitch",
+        tier: "premium",
+        onTelemetry: async (event) => { telemetry.push(event as unknown as Record<string, unknown>); }
+      },
+      {
+        completion: async (request) => request.section === "core"
+          ? { ...sectionCompletion("core"), finishReason: "content_filter" }
+          : sectionCompletion(request.section),
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        maxAttempts: 2,
+        sleep: async () => undefined
+      }
+    )).rejects.toThrow("content_filtered");
+
+    expect(telemetry).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        section: "core",
+        attempt: 1,
+        failureReason: "content_filtered",
+        status: "failed"
+      })
+    ]));
+  });
+
+  it("uses basic routes and zero provider cost for a free OpenAI-backed report", async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    const report = await generateInvestmentReport(
+      {
+        profile: sampleProfile,
+        transcript: "A free pitch",
+        tier: "basic",
+        onTelemetry: async (event) => { telemetry.push(event as unknown as Record<string, unknown>); }
+      },
+      {
+        completion: async (request) => sectionCompletion(request.section),
+        provider: "openai",
+        model: "test-openai",
+        maxAttempts: 1
+      }
+    );
+
+    expect(report.overallScore).toBe(demoReport.overallScore);
+    expect(telemetry).toHaveLength(3);
+    expect(telemetry.every((event) => event.route === "basic" && event.estimatedCostUsd === 0)).toBe(true);
+  });
+
+  it("rejects core output when risks and guidance do not line up", async () => {
+    await expect(generateInvestmentReport(
+      { profile: sampleProfile, transcript: "A short pitch", tier: "premium" },
+      {
+        completion: async (request) => {
+          if (request.section !== "core") return sectionCompletion(request.section);
+          const parsed = JSON.parse(sectionCompletion("core").content);
+          parsed.riskGuidance = [];
+          return { ...sectionCompletion("core"), content: JSON.stringify(parsed) };
+        },
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        maxAttempts: 1
+      }
+    )).rejects.toThrow("Every risk must have matching guidance");
   });
 });
 
@@ -239,7 +341,7 @@ function sectionCompletion(section: ReportSectionRequest["section"]) {
       ? JSON.stringify({ investorPanel: demoReport.investorPanel })
       : section === "evidence"
         ? JSON.stringify({ timeline: demoReport.timeline, valuation: demoReport.valuation })
-        : JSON.stringify({ ycEvaluation: demoReport.ycEvaluation });
+        : JSON.stringify({ ycEvaluation: demoYcEvaluation });
 
   return {
     content,
