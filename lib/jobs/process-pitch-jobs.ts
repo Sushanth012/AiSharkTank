@@ -1,8 +1,13 @@
 import "server-only";
 
 import { ArtifactValidationError, extractPitchArtifacts } from "@/lib/artifacts/extract";
-import { generateInvestmentReport, type AiRunTelemetry } from "@/lib/report-generator";
+import {
+  generateInvestmentReport,
+  ReportGenerationExhaustedError,
+  type AiRunTelemetry
+} from "@/lib/report-generator";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { shouldRetryPitchJobFailure } from "@/lib/jobs/retry-policy";
 import type { StartupProfile } from "@/lib/types";
 
 type ClaimedJob = {
@@ -138,6 +143,7 @@ export async function processPitchJobs(batchSize: number): Promise<PitchWorkerRe
     } catch (error) {
       const message = error instanceof Error ? error.message : "Pitch generation failed.";
       const validationFailure = error instanceof ArtifactValidationError;
+      const reportRetriesExhausted = error instanceof ReportGenerationExhaustedError;
       if (!artifactsExtracted) {
         await admin
           .from("submissions")
@@ -149,7 +155,10 @@ export async function processPitchJobs(batchSize: number): Promise<PitchWorkerRe
         p_claim_token: job.claim_token,
         p_error_code: validationFailure ? "artifact_invalid" : "processing_failed",
         p_error_message: message,
-        p_retryable: !validationFailure
+        p_retryable: shouldRetryPitchJobFailure({
+          artifactValidationFailed: validationFailure,
+          reportRetriesExhausted
+        })
       });
       if (failureError) throw failureError;
       if (status === "queued") result.retried += 1;

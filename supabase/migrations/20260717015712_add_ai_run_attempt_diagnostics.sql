@@ -8,9 +8,6 @@ alter table public.ai_runs
   add column finish_reason text,
   add column failure_reason text;
 
-create index ai_runs_job_section_attempt_idx
-  on public.ai_runs(job_id, section, attempt_number, created_at);
-
 comment on column public.ai_runs.section is
   'Independently generated report section for this provider attempt.';
 comment on column public.ai_runs.attempt_number is

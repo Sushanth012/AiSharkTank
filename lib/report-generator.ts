@@ -79,56 +79,89 @@ export async function generateInvestmentReport(
     ? modelForRoute(primaryRoute)
     : process.env.OPENAI_MODEL ?? "gpt-5.5");
   const specs = sectionSpecsFor(input);
-  const completion = dependencies.completion ?? createProviderCompletion({ provider, model });
   const maxAttempts = dependencies.maxAttempts ?? DEFAULT_SECTION_ATTEMPTS;
 
-  if (usingDeepSeek) {
-    const maximumCost = specs.reduce((total, spec) => {
-      const prompt = buildSectionPrompt(input, spec.section);
-      return total + estimateRunCost({
-        model,
-        inputTokens: Math.ceil(prompt.length / 4),
-        outputTokens: spec.maxTokens
-      });
-    }, 0);
-    assertWithinBudget(maximumCost * maxAttempts, budgetForRoute(primaryRoute));
+  try {
+    const completion = dependencies.completion ?? createProviderCompletion({ provider, model });
+    if (usingDeepSeek) {
+      const maximumCost = specs.reduce((total, spec) => {
+        const prompt = buildSectionPrompt(input, spec.section);
+        return total + estimateRunCost({
+          model,
+          inputTokens: Math.ceil(prompt.length / 4),
+          outputTokens: spec.maxTokens
+        });
+      }, 0);
+      assertWithinBudget(maximumCost * maxAttempts, budgetForRoute(primaryRoute));
+    }
+
+    const sharedController = new AbortController();
+    let rootError: unknown;
+    const sectionTasks = specs.map(async (spec) => {
+      try {
+        return [
+          spec.section,
+          await generateSection({
+            input,
+            section: spec.section,
+            schema: spec.schema,
+            maxTokens: spec.maxTokens,
+            route: routeForSection(input.tier, spec.section),
+            provider,
+            model,
+            completion,
+            timeoutMs: dependencies.timeoutMs ?? sectionTimeoutMs(),
+            maxAttempts,
+            sleep: dependencies.sleep ?? defaultSleep,
+            signal: sharedController.signal
+          })
+        ] as const;
+      } catch (error) {
+        if (!sharedController.signal.aborted) {
+          rootError = error;
+          sharedController.abort(error);
+        }
+        throw error;
+      }
+    });
+    const settled = await Promise.allSettled(sectionTasks);
+    if (rootError) throw rootError;
+    const rejected = settled.find((entry) => entry.status === "rejected");
+    if (rejected?.status === "rejected") throw rejected.reason;
+    const entries = settled.map((entry) => {
+      if (entry.status !== "fulfilled") throw entry.reason;
+      return entry.value;
+    });
+    const sections = Object.fromEntries(entries) as Record<ReportSection, unknown>;
+    const core = coreReportSchema.parse(sections.core);
+    const panel = panelReportSchema.parse(sections.panel);
+    const evidence = evidenceReportSchema.parse(sections.evidence);
+    const yc = input.profile.reviewMode === "yc"
+      ? ycReportSchema.parse(sections.yc).ycEvaluation
+      : null;
+
+    return pitchReportSchema.parse({
+      ...core,
+      ...panel,
+      ...evidence,
+      id: crypto.randomUUID(),
+      startupName: input.profile.startupName,
+      generatedAt: new Date().toISOString(),
+      reviewMode: input.profile.reviewMode ?? "investor",
+      ycEvaluation: yc,
+      investorPanel: applyInvestorRoster(panel.investorPanel)
+    });
+  } catch (error) {
+    throw new ReportGenerationExhaustedError(error);
   }
+}
 
-  const entries = await Promise.all(specs.map(async (spec) => [
-    spec.section,
-    await generateSection({
-      input,
-      section: spec.section,
-      schema: spec.schema,
-      maxTokens: spec.maxTokens,
-      route: routeForSection(input.tier, spec.section),
-      provider,
-      model,
-      completion,
-      timeoutMs: dependencies.timeoutMs ?? sectionTimeoutMs(),
-      maxAttempts,
-      sleep: dependencies.sleep ?? defaultSleep
-    })
-  ] as const));
-  const sections = Object.fromEntries(entries) as Record<ReportSection, unknown>;
-  const core = coreReportSchema.parse(sections.core);
-  const panel = panelReportSchema.parse(sections.panel);
-  const evidence = evidenceReportSchema.parse(sections.evidence);
-  const yc = input.profile.reviewMode === "yc"
-    ? ycReportSchema.parse(sections.yc).ycEvaluation
-    : null;
-
-  return pitchReportSchema.parse({
-    ...core,
-    ...panel,
-    ...evidence,
-    id: crypto.randomUUID(),
-    startupName: input.profile.startupName,
-    generatedAt: new Date().toISOString(),
-    reviewMode: input.profile.reviewMode ?? "investor",
-    ycEvaluation: yc,
-    investorPanel: applyInvestorRoster(panel.investorPanel)
-  });
+export class ReportGenerationExhaustedError extends Error {
+  constructor(cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : "Unknown provider failure.";
+    super(`Report generation exhausted its section retries. ${detail}`, { cause });
+    this.name = "ReportGenerationExhaustedError";
+  }
 }
 
 const decisionSchema = z.enum(["Invest", "Pass", "Invest with Conditions"]);
@@ -243,6 +276,7 @@ type GenerateSectionInput = {
   timeoutMs: number;
   maxAttempts: number;
   sleep: (durationMs: number) => Promise<void>;
+  signal: AbortSignal;
 };
 
 function sectionSpecsFor(input: GenerateReportInput): SectionSpec[] {
@@ -268,7 +302,8 @@ async function generateSection({
   completion,
   timeoutMs,
   maxAttempts,
-  sleep
+  sleep,
+  signal
 }: GenerateSectionInput) {
   const prompt = buildSectionPrompt(input, section);
   const estimatedInputTokens = Math.ceil(prompt.length / 4);
@@ -280,14 +315,15 @@ async function generateSection({
     try {
       response = await completeWithTimeout(
         (signal) => completion({ section, prompt, maxTokens, attempt, signal }),
-        timeoutMs
+        timeoutMs,
+        signal
       );
       if (!response.content) throw new SectionGenerationError("empty_response");
       if (response.finishReason === "length") throw new SectionGenerationError("truncated");
       if (response.finishReason === "content_filter") throw new SectionGenerationError("content_filtered");
 
       const parsed = schema.parse(JSON.parse(stripCodeFence(response.content)));
-      await input.onTelemetry?.(buildAttemptTelemetry({
+      await recordTelemetrySafely(input.onTelemetry, buildAttemptTelemetry({
         route,
         provider,
         model,
@@ -303,7 +339,7 @@ async function generateSection({
     } catch (error) {
       lastError = error;
       const failureReason = sectionFailureReason(error);
-      await input.onTelemetry?.(buildAttemptTelemetry({
+      await recordTelemetrySafely(input.onTelemetry, buildAttemptTelemetry({
         route,
         provider,
         model,
@@ -321,11 +357,39 @@ async function generateSection({
       }));
 
       if (attempt === maxAttempts || !isRetryableSectionFailure(error)) throw error;
-      await sleep(250 * 2 ** (attempt - 1));
+      await sleepWithSignal(250 * 2 ** (attempt - 1), sleep, signal);
     }
   }
 
   throw lastError ?? new Error(`The ${section} report section could not be generated.`);
+}
+
+function sleepWithSignal(
+  durationMs: number,
+  sleep: (durationMs: number) => Promise<void>,
+  signal: AbortSignal
+) {
+  if (signal.aborted) return Promise.reject(new SectionGenerationError("cancelled"));
+  let abortListener: (() => void) | undefined;
+  const cancelled = new Promise<never>((_, reject) => {
+    abortListener = () => reject(new SectionGenerationError("cancelled"));
+    signal.addEventListener("abort", abortListener, { once: true });
+  });
+  return Promise.race([sleep(durationMs), cancelled]).finally(() => {
+    if (abortListener) signal.removeEventListener("abort", abortListener);
+  });
+}
+
+async function recordTelemetrySafely(
+  recorder: GenerateReportInput["onTelemetry"],
+  telemetry: AiRunTelemetry
+) {
+  if (!recorder) return;
+  try {
+    await recorder(telemetry);
+  } catch (error) {
+    console.error("AI attempt telemetry could not be stored.", error);
+  }
 }
 
 function buildAttemptTelemetry({
@@ -423,17 +487,33 @@ function createProviderCompletion({
   };
 }
 
-function completeWithTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number) {
+function completeWithTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  parentSignal: AbortSignal
+) {
+  if (parentSignal.aborted) {
+    return Promise.reject(new SectionGenerationError("cancelled"));
+  }
   const controller = new AbortController();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timeout = setTimeout(() => {
-      controller.abort();
       reject(new SectionGenerationError("timeout"));
+      controller.abort();
     }, timeoutMs);
   });
-  return Promise.race([operation(controller.signal), timedOut]).finally(() => {
+  let cancelListener: (() => void) | undefined;
+  const cancelled = new Promise<never>((_, reject) => {
+    cancelListener = () => {
+      reject(new SectionGenerationError("cancelled"));
+      controller.abort(parentSignal.reason);
+    };
+    parentSignal.addEventListener("abort", cancelListener, { once: true });
+  });
+  return Promise.race([operation(controller.signal), timedOut, cancelled]).finally(() => {
     if (timeout) clearTimeout(timeout);
+    if (cancelListener) parentSignal.removeEventListener("abort", cancelListener);
   });
 }
 
@@ -635,7 +715,7 @@ export function buildSectionPrompt(input: GenerateReportInput, section: ReportSe
     task: `${base.task} Generate only the ${section} section. Do not add fields outside the requested shape.`,
     section,
     constraints: [
-      ...base.constraints,
+      ...constraintsForSection(base.constraints, section),
       "Keep string fields under 60 words and list fields to the minimum useful number of items.",
       "Return a complete JSON object. Never stop mid-string."
     ],
@@ -643,6 +723,29 @@ export function buildSectionPrompt(input: GenerateReportInput, section: ReportSe
     profile: base.profile,
     transcript: base.transcript,
     deckText: base.deckText
+  });
+}
+
+function constraintsForSection(constraints: string[], section: ReportSection) {
+  const sectionOnly: Array<{ matches: string[]; sections: ReportSection[] }> = [
+    {
+      matches: ["Write every risk", "Each risk must", "For every risk", "riskGuidance"],
+      sections: ["core"]
+    },
+    {
+      matches: ["For every investor perspective", "exactly five investor perspectives", "Mark Cuban"],
+      sections: ["panel"]
+    },
+    { matches: ["Valuation confidence"], sections: ["evidence"] },
+    {
+      matches: ["Directly answer five YC questions", "Y Combinator", "Set ycEvaluation"],
+      sections: ["yc"]
+    }
+  ];
+
+  return constraints.filter((constraint) => {
+    const scoped = sectionOnly.find((rule) => rule.matches.some((match) => constraint.includes(match)));
+    return !scoped || scoped.sections.includes(section);
   });
 }
 
