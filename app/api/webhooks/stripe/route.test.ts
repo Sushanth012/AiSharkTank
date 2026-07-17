@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   constructEvent: vi.fn(),
   retrieveCharge: vi.fn(),
   listDisputes: vi.fn(),
+  listInvoicePayments: vi.fn(),
+  from: vi.fn(),
   rpc: vi.fn()
 }));
 
@@ -13,12 +15,13 @@ vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     webhooks: { constructEvent: mocks.constructEvent },
     charges: { retrieve: mocks.retrieveCharge },
-    disputes: { list: mocks.listDisputes }
+    disputes: { list: mocks.listDisputes },
+    invoicePayments: { list: mocks.listInvoicePayments }
   })
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: () => ({ rpc: mocks.rpc })
+  createSupabaseAdminClient: () => ({ from: mocks.from, rpc: mocks.rpc })
 }));
 
 import { POST } from "./route";
@@ -29,7 +32,11 @@ beforeEach(() => {
   mocks.constructEvent.mockReset();
   mocks.retrieveCharge.mockReset();
   mocks.listDisputes.mockReset();
+  mocks.listInvoicePayments.mockReset();
+  mocks.from.mockReset();
   mocks.rpc.mockReset();
+  process.env.STRIPE_PRICE_PITCH_PACK = "price_pitch_monthly";
+  process.env.STRIPE_PRICE_BUILDER = "price_builder_monthly";
 });
 
 describe("Stripe reversal webhooks", () => {
@@ -108,6 +115,54 @@ describe("Stripe reversal webhooks", () => {
       "reconcile_stripe_credit_reversal",
       expect.objectContaining({ p_disputed: true, p_payment_intent_id: "pi_2" })
     );
+  });
+
+  it("grants five Pitch Pack credits from a paid monthly invoice with a cap of ten", async () => {
+    mocks.constructEvent.mockReturnValue(
+      stripeEvent("invoice.paid", {
+        id: "in_pitch_1",
+        currency: "usd",
+        billing_reason: "subscription_cycle",
+        customer: "cus_pitch",
+        amount_paid: 799,
+        lines: {
+          data: [{ pricing: { price_details: { price: "price_pitch_monthly" } } }]
+        }
+      })
+    );
+    mocks.from.mockReturnValue({
+      select: () => ({
+        eq: () => ({ single: async () => ({ data: { user_id: "10000000-0000-4000-8000-000000000001" }, error: null }) })
+      })
+    });
+    mocks.listInvoicePayments.mockResolvedValue({
+      data: [{ payment: { payment_intent: "pi_pitch_1" } }]
+    });
+    mocks.rpc.mockResolvedValue({ error: null });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("process_stripe_fulfillment_event", {
+      p_event_id: "evt_1",
+      p_event_type: "invoice.paid",
+      p_object_id: "in_pitch_1",
+      p_livemode: false,
+      p_user_id: "10000000-0000-4000-8000-000000000001",
+      p_source: "subscription",
+      p_quantity: 5,
+      p_external_ref: "in_pitch_1",
+      p_payment_intent_id: "pi_pitch_1",
+      p_amount_paid: 799,
+      p_currency: "usd",
+      p_expires_at: null,
+      p_metadata: {
+        offer_id: "pitch_pack",
+        price_id: "price_pitch_monthly",
+        billing_reason: "subscription_cycle",
+        rollover_cap: 10
+      }
+    });
   });
 });
 

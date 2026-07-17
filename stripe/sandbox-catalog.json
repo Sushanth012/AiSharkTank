@@ -3,10 +3,11 @@
   "currency": "usd",
   "offers": {
     "pitch_pack": {
-      "priceId": "price_1TsriCBroFNelPgCD2TO4aqm",
-      "lookupKey": "ai_shark_tank_pitch_pack_v1",
+      "priceId": "price_1Tu3kPBroFNelPgC5PUoHwdx",
+      "lookupKey": "ai_shark_tank_pitch_pack_monthly_v1",
       "unitAmount": 799,
-      "mode": "payment"
+      "mode": "subscription",
+      "interval": "month"
     },
     "builder": {
       "priceId": "price_1TsriPBroFNelPgClfNVHXyo",

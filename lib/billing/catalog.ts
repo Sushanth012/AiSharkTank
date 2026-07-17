@@ -13,19 +13,20 @@ export type BillingOffer = {
   creditSource: "pitch_pack" | "subscription" | "addon_pack";
   priceEnv: "STRIPE_PRICE_PITCH_PACK" | "STRIPE_PRICE_BUILDER" | "STRIPE_PRICE_ADDON_PACK";
   expiresAfterMonths?: number;
+  rolloverCap?: number;
 };
 
 export const billingOffers: Record<OfferId, BillingOffer> = {
   pitch_pack: {
     id: "pitch_pack",
     name: "Pitch Pack",
-    description: "Five premium investor-panel reports, valid for 12 months.",
-    displayPrice: "$7.99",
-    mode: "payment",
+    description: "5 premium reports each month, with rollover capped at 10.",
+    displayPrice: "$7.99/mo",
+    mode: "subscription",
     credits: 5,
-    creditSource: "pitch_pack",
+    creditSource: "subscription",
     priceEnv: "STRIPE_PRICE_PITCH_PACK",
-    expiresAfterMonths: 12
+    rolloverCap: 10
   },
   builder: {
     id: "builder",
@@ -35,7 +36,8 @@ export const billingOffers: Record<OfferId, BillingOffer> = {
     mode: "subscription",
     credits: 15,
     creditSource: "subscription",
-    priceEnv: "STRIPE_PRICE_BUILDER"
+    priceEnv: "STRIPE_PRICE_BUILDER",
+    rolloverCap: 30
   },
   addon_pack: {
     id: "addon_pack",

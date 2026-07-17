@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
-import { billingOffers, findOfferByPriceId, getConfiguredOffer, offerIdSchema } from "@/lib/billing/catalog";
+import { findOfferByPriceId, getConfiguredOffer, offerIdSchema } from "@/lib/billing/catalog";
 import { hasActiveDispute, objectId, requirePositiveAmount } from "@/lib/billing/reversals";
 import { getStripe } from "@/lib/stripe";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -151,18 +151,24 @@ async function fulfillSubscriptionInvoice(event: Stripe.Event, invoice: Stripe.I
     return;
   }
 
-  const builder = getConfiguredOffer("builder");
-  if (!builder) {
-    throw new Error("Builder price is not configured.");
-  }
-
   const priceIds = invoice.lines.data.flatMap((line) => {
     const price = line.pricing?.price_details?.price;
     return price ? [objectId(price)!] : [];
   });
-  if (!priceIds.includes(builder.priceId)) {
+  const matchingSubscriptionOffers = priceIds.flatMap((priceId) => {
+    const offer = findOfferByPriceId(priceId);
+    return offer?.mode === "subscription" ? [getConfiguredOffer(offer.id)!] : [];
+  });
+  const subscriptionOffers = Array.from(
+    new Map(matchingSubscriptionOffers.map((offer) => [offer.id, offer])).values()
+  );
+  if (subscriptionOffers.length === 0) {
     return;
   }
+  if (subscriptionOffers.length !== 1) {
+    throw new Error("Subscription invoice must match exactly one configured plan.");
+  }
+  const subscriptionOffer = subscriptionOffers[0];
 
   const admin = requireAdmin();
   const customerId = objectId(invoice.customer);
@@ -185,7 +191,7 @@ async function fulfillSubscriptionInvoice(event: Stripe.Event, invoice: Stripe.I
     return id ? [id] : [];
   });
   if (paymentIntentIds.length !== 1) {
-    throw new Error("Builder invoice must have exactly one paid PaymentIntent.");
+    throw new Error("Subscription invoice must have exactly one paid PaymentIntent.");
   }
 
   const { error } = await admin.rpc("process_stripe_fulfillment_event", {
@@ -194,14 +200,19 @@ async function fulfillSubscriptionInvoice(event: Stripe.Event, invoice: Stripe.I
     p_object_id: invoice.id,
     p_livemode: event.livemode,
     p_user_id: account.user_id,
-    p_source: billingOffers.builder.creditSource,
-    p_quantity: billingOffers.builder.credits,
+    p_source: subscriptionOffer.creditSource,
+    p_quantity: subscriptionOffer.credits,
     p_external_ref: invoice.id,
     p_payment_intent_id: paymentIntentIds[0],
     p_amount_paid: requirePositiveAmount(invoice.amount_paid, "Invoice amount"),
     p_currency: invoice.currency,
     p_expires_at: null,
-    p_metadata: { offer_id: "builder", price_id: builder.priceId, billing_reason: invoice.billing_reason }
+    p_metadata: {
+      offer_id: subscriptionOffer.id,
+      price_id: subscriptionOffer.priceId,
+      billing_reason: invoice.billing_reason,
+      rollover_cap: subscriptionOffer.rolloverCap
+    }
   });
   if (error) throw error;
 }
@@ -248,20 +259,20 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     .single();
   if (accountError) throw accountError;
 
-  const builderLine = subscription.items.data.find((item) => {
+  const subscriptionLine = subscription.items.data.find((item) => {
     const offer = findOfferByPriceId(item.price.id);
-    return offer?.id === "builder";
+    return offer?.mode === "subscription";
   });
-  if (!builderLine) return;
+  if (!subscriptionLine) return;
 
   const { error } = await admin.from("subscriptions").upsert(
     {
       user_id: account.user_id,
       stripe_subscription_id: subscription.id,
-      stripe_price_id: builderLine.price.id,
+      stripe_price_id: subscriptionLine.price.id,
       status: subscription.status,
-      current_period_start: new Date(builderLine.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(builderLine.current_period_end * 1000).toISOString(),
+      current_period_start: new Date(subscriptionLine.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscriptionLine.current_period_end * 1000).toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end
     },
     { onConflict: "user_id" }
