@@ -3,10 +3,12 @@ import {
   applyInvestorRoster,
   buildPrompt,
   callWithRetry,
+  generateInvestmentReport,
   isRetryableAiError,
   pitchReportSchema,
   stripCodeFence,
-  telemetryErrorCode
+  telemetryErrorCode,
+  type ReportSectionRequest
 } from "./report-generator";
 import { demoReport, sampleProfile } from "./demo-data";
 
@@ -88,3 +90,162 @@ describe("AI provider boundaries", () => {
     expect(panel[0].thesis).toBe(providerPanel[0].thesis);
   });
 });
+
+describe("parallel report generation", () => {
+  it("runs premium report sections in parallel and combines them server-side", async () => {
+    const started: string[] = [];
+    const releases = new Map<string, () => void>();
+    const completion = vi.fn((request: ReportSectionRequest) => {
+      started.push(request.section);
+      return new Promise<ReturnType<typeof sectionCompletion>>((resolve) => {
+        releases.set(request.section, () => resolve(sectionCompletion(request.section)));
+      });
+    });
+
+    const reportPromise = generateInvestmentReport(
+      { profile: sampleProfile, transcript: "A short pitch", tier: "premium" },
+      { completion, provider: "deepseek", model: "deepseek-v4-pro", timeoutMs: 5_000 }
+    );
+
+    await vi.waitFor(() => expect(started).toEqual(["core", "panel", "evidence"]));
+    releases.forEach((release) => release());
+
+    const report = await reportPromise;
+    expect(report.executiveSummary).toBe(demoReport.executiveSummary);
+    expect(report.investorPanel).toHaveLength(5);
+    expect(report.timeline).toEqual(demoReport.timeline);
+    expect(report.ycEvaluation).toBeNull();
+  });
+
+  it("retries truncated JSON once and records response diagnostics for every attempt", async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    let coreAttempts = 0;
+
+    const report = await generateInvestmentReport(
+      {
+        profile: sampleProfile,
+        transcript: "A short pitch",
+        tier: "premium",
+        onTelemetry: async (event) => { telemetry.push(event as unknown as Record<string, unknown>); }
+      },
+      {
+        completion: async (request) => {
+          if (request.section === "core" && coreAttempts++ === 0) {
+            return {
+              content: '{"overallScore":72,"executiveSummary":"cut off',
+              finishReason: "length",
+              inputTokens: 120,
+              cachedInputTokens: 0,
+              outputTokens: 600
+            };
+          }
+          return sectionCompletion(request.section);
+        },
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        timeoutMs: 5_000,
+        maxAttempts: 2,
+        sleep: async () => undefined
+      }
+    );
+
+    expect(report.overallScore).toBe(demoReport.overallScore);
+    expect(coreAttempts).toBe(2);
+    expect(telemetry).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        section: "core",
+        attempt: 1,
+        status: "failed",
+        finishReason: "length",
+        failureReason: "truncated",
+        responseCharacters: 49,
+        outputTokens: 600
+      }),
+      expect.objectContaining({ section: "core", attempt: 2, status: "complete" })
+    ]));
+  });
+
+  it("times out a stalled provider attempt and retries it", async () => {
+    vi.useFakeTimers();
+    let coreAttempts = 0;
+    const telemetry: Array<Record<string, unknown>> = [];
+
+    const reportPromise = generateInvestmentReport(
+      {
+        profile: sampleProfile,
+        transcript: "A short pitch",
+        tier: "premium",
+        onTelemetry: async (event) => { telemetry.push(event as unknown as Record<string, unknown>); }
+      },
+      {
+        completion: (request) => {
+          if (request.section === "core" && coreAttempts++ === 0) {
+            return new Promise(() => undefined);
+          }
+          return Promise.resolve(sectionCompletion(request.section));
+        },
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        timeoutMs: 100,
+        maxAttempts: 2,
+        sleep: async () => undefined
+      }
+    );
+
+    await vi.advanceTimersByTimeAsync(101);
+    await expect(reportPromise).resolves.toMatchObject({ overallScore: demoReport.overallScore });
+    expect(telemetry).toEqual(expect.arrayContaining([
+      expect.objectContaining({ section: "core", attempt: 1, failureReason: "timeout" })
+    ]));
+  });
+
+  it("generates YC evaluation as a dedicated parallel section", async () => {
+    const sections: string[] = [];
+    const report = await generateInvestmentReport(
+      { profile: { ...sampleProfile, reviewMode: "yc" }, transcript: "YC application video", tier: "premium" },
+      {
+        completion: async (request) => {
+          sections.push(request.section);
+          return sectionCompletion(request.section);
+        },
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        timeoutMs: 5_000
+      }
+    );
+
+    expect(sections).toEqual(["core", "panel", "evidence", "yc"]);
+    expect(report.reviewMode).toBe("yc");
+    expect(report.ycEvaluation).toEqual(demoReport.ycEvaluation ?? undefined);
+  });
+});
+
+function sectionCompletion(section: ReportSectionRequest["section"]) {
+  const content = section === "core"
+    ? JSON.stringify({
+        overallScore: demoReport.overallScore,
+        businessScore: demoReport.businessScore,
+        deliveryScore: demoReport.deliveryScore,
+        recommendation: demoReport.recommendation,
+        executiveSummary: demoReport.executiveSummary,
+        scores: demoReport.scores,
+        strengths: demoReport.strengths,
+        risks: demoReport.risks,
+        riskGuidance: demoReport.riskGuidance,
+        nextMilestones: demoReport.nextMilestones,
+        finalMemo: demoReport.finalMemo
+      })
+    : section === "panel"
+      ? JSON.stringify({ investorPanel: demoReport.investorPanel })
+      : section === "evidence"
+        ? JSON.stringify({ timeline: demoReport.timeline, valuation: demoReport.valuation })
+        : JSON.stringify({ ycEvaluation: demoReport.ycEvaluation });
+
+  return {
+    content,
+    finishReason: "stop",
+    inputTokens: 120,
+    cachedInputTokens: 10,
+    outputTokens: Math.ceil(content.length / 4)
+  };
+}
