@@ -61,6 +61,8 @@ mark { color: inherit; background: linear-gradient(transparent 62%, var(--lime) 
 .button.secondary { color: var(--ink); background: var(--white); border-color: var(--ink); }
 .button.secondary:hover { color: var(--paper); background: var(--ink); }
 .button.ghost, .text-button { color: var(--ink); background: transparent; }
+.button.danger { color: var(--danger); background: var(--white); border-color: var(--danger); }
+.button.danger:hover { color: var(--white); background: var(--danger); }
 .button-lg { min-height: 56px; padding: 0 24px; }
 .full { width: 100%; }
 
@@ -146,6 +148,8 @@ mark { color: inherit; background: linear-gradient(transparent 62%, var(--lime) 
 .badge.complete, .badge.invest { color: var(--success); background: #e5f5ec; }.badge.processing, .badge.queued, .badge.conditions { color: var(--warning); background: #fff0d6; }.badge.failed, .badge.pass { color: var(--danger); background: #fbe6e4; }
 .callout, .error, .success { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-control); font-size: 14px; }.callout { color: var(--ink); background: var(--lime); }.error { color: #7e1715; background: #fbe6e4; }.success { color: #0f5b39; background: #e5f5ec; }
 .processing-callout { display: flex; gap: 14px; align-items: flex-start; padding: 18px; background: #1c1f1a; border: 1px solid var(--ink); border-radius: var(--radius-control); color: var(--paper); }.processing-callout p { max-width: 680px; margin: 5px 0 0; color: #b7bbb1; font-size: 14px; }.processing-pulse { flex: 0 0 auto; width: 12px; height: 12px; margin-top: 5px; background: var(--lime); border-radius: 50%; animation: pulse 1.6s ease-in-out infinite; }.status-note { max-width: 240px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; text-align: right; }.status-note.failed { color: var(--danger); }
+.failed-pitch-actions { display: grid; grid-template-columns: auto auto; gap: 8px 14px; align-items: center; justify-items: end; }
+.delete-pitch-error { grid-column: 1 / -1; max-width: 360px; color: var(--danger); font-size: 12px; text-align: right; }
 .list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }.list li { position: relative; padding-left: 18px; }.list li::before { content: "↗"; position: absolute; left: 0; color: var(--lime-deep); font-weight: 900; }
 
 /* Forms and auth */
@@ -249,7 +253,7 @@ mark { color: inherit; background: linear-gradient(transparent 62%, var(--lime) 
   .live-room { box-shadow: 7px 7px 0 var(--lime); }.transcript-window { min-height: 270px; padding: 55px 22px 70px; }.waveform { left: 22px; }.seat-rail { grid-template-columns: repeat(5, minmax(70px, 1fr)); overflow-x: auto; }.verdict-bar { grid-template-columns: 1fr auto; }.verdict-bar span { grid-column: 1 / -1; }
   .question-ticker { margin-left: -12px; }.manifesto-section { grid-template-columns: 1fr; padding: 90px 10px; }.manifesto-section > p:last-child { grid-column: auto; }.manifesto-section h2 { font-size: 48px; }
   .story-sequence { padding-bottom: 70px; }.story-panel { gap: 38px; padding: 70px 18px; }.story-copy h2 { font-size: 51px; }.question-specimen { min-height: 260px; padding: 28px; }.question-specimen p { margin-block: 40px; }.upload-specimen { grid-template-columns: auto 1fr; }.upload-specimen > b { grid-column: 2; }.human-proof { grid-template-columns: 1fr; gap: 30px; padding: 90px 18px; }.human-proof > p { grid-column: auto; }.closing-cta { gap: 40px; padding: 75px 24px; }.closing-cta h2 { font-size: 54px; }
-  .workspace-shell .page { padding-block: 55px 80px; }.workspace-head, .section-title, .pitch-form-heading { display: grid; gap: 24px; }.workspace-head h1, .section-title h1, .pitch-form-heading h1 { font-size: 50px; }.workspace-stats { overflow-x: auto; }.workspace-stats div { min-width: 112px; }.sidebar { display: block; }.sidebar .button { width: 100%; }.submission-card { align-items: flex-start; flex-direction: column; }.submission-card .button { width: 100%; }
+  .workspace-shell .page { padding-block: 55px 80px; }.workspace-head, .section-title, .pitch-form-heading { display: grid; gap: 24px; }.workspace-head h1, .section-title h1, .pitch-form-heading h1 { font-size: 50px; }.workspace-stats { overflow-x: auto; }.workspace-stats div { min-width: 112px; }.sidebar { display: block; }.sidebar .button { width: 100%; }.submission-card { align-items: flex-start; flex-direction: column; }.submission-card .button { width: 100%; }.failed-pitch-actions { width: 100%; grid-template-columns: 1fr auto; justify-items: start; }.failed-pitch-actions .button { width: auto; }.delete-pitch-error { text-align: left; }
   .form-steps { overflow-x: auto; }.form-steps span { min-width: max-content; }.form-intro, .form-grid, .review-mode-grid, .review-pass-grid { grid-template-columns: 1fr; }.field.full { grid-column: auto; }.grid.two { grid-template-columns: 1fr; }
   .auth-layout { grid-template-columns: 1fr; margin-top: 24px; }.auth-story { padding: 60px 28px; }.auth-story::after { display: none; }.auth-card { padding: 45px 24px; }.auth-story h1 { font-size: 58px; }
   .pricing-heading { padding: 55px 5px 10px; }.pricing-grid { grid-template-columns: 1fr; }.free-card { grid-column: auto; }.pricing-card { min-height: auto; }.price-list { margin-bottom: 30px; }

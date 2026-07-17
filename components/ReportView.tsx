@@ -266,7 +266,11 @@ export function ReportView({ report }: { report: PitchReport }) {
       <aside className="grid report-side">
         <section className="card next-moves-card">
           <p className="eyebrow">Your game plan</p>
-          <h2>Do these 3 things next</h2>
+          <h2>
+            {report.nextMilestones.length === 1
+              ? "Do this next"
+              : `Do these ${report.nextMilestones.length} things next`}
+          </h2>
           <ol className="numbered-list">
             {report.nextMilestones.map((item) => <li key={item}>{item}</li>)}
           </ol>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, Plus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ActivePitchRefresh } from "@/components/ActivePitchRefresh";
+import { DeleteFailedPitchButton } from "@/components/DeleteFailedPitchButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { demoSubmissions } from "@/lib/demo-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -115,7 +116,12 @@ export default async function DashboardPage() {
                       {submission.overallScore ? <span>Score {submission.overallScore}</span> : null}
                     </div>
                   </div>
-                  {submission.reportId ? (
+                  {submission.status === "failed" && !demoMode ? (
+                    <DeleteFailedPitchButton
+                      submissionId={submission.id}
+                      startupName={submission.startupName}
+                    />
+                  ) : submission.reportId ? (
                     <Link className="button secondary" href={`/reports/${submission.reportId}`}>
                       Open report
                       <ArrowRight size={17} aria-hidden="true" />
