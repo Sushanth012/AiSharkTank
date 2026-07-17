@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyInvestorRoster,
   buildPrompt,
+  buildProviderRequest,
   buildSectionPrompt,
   callWithRetry,
   generateInvestmentReport,
@@ -50,6 +51,19 @@ describe("AI provider boundaries", () => {
     expect(stripCodeFence("```json\n{\"ok\":true}\n```")).toBe('{"ok":true}');
     expect(() => pitchReportSchema.parse({ overallScore: 101 })).toThrow();
     expect(telemetryErrorCode(new SyntaxError("bad json"))).toBe("invalid_provider_output");
+  });
+
+  it("disables DeepSeek thinking for bounded JSON report sections", () => {
+    const request = buildProviderRequest({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      prompt: "Return a small JSON object.",
+      maxTokens: 1_600
+    });
+
+    expect(request.thinking).toEqual({ type: "disabled" });
+    expect(request.response_format).toEqual({ type: "json_object" });
+    expect(request.max_tokens).toBe(1_600);
   });
 
   it("builds a dedicated YC application prompt around the five application questions", () => {

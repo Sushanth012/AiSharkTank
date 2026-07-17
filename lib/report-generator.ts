@@ -463,19 +463,15 @@ function createProviderCompletion({
   });
 
   return async (request: ReportSectionRequest): Promise<ReportSectionCompletion> => {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a supportive startup pitch coach for high school and college students. Return only one valid JSON object matching the requested shape. Use plain language. Keep every field concise. Valuation estimates are practice-oriented ranges, not financial advice."
-        },
-        { role: "user", content: request.prompt }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: request.maxTokens
-    }, { signal: request.signal });
+    const response = await client.chat.completions.create(
+      buildProviderRequest({
+        provider,
+        model,
+        prompt: request.prompt,
+        maxTokens: request.maxTokens
+      }),
+      { signal: request.signal }
+    );
     const content = response.choices[0]?.message.content ?? "";
     return {
       content,
@@ -484,6 +480,37 @@ function createProviderCompletion({
       cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
       outputTokens: response.usage?.completion_tokens ?? Math.ceil(content.length / 4)
     };
+  };
+}
+
+type ProviderRequest = OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+  thinking?: { type: "disabled" };
+};
+
+export function buildProviderRequest({
+  provider,
+  model,
+  prompt,
+  maxTokens
+}: {
+  provider: "deepseek" | "openai";
+  model: string;
+  prompt: string;
+  maxTokens: number;
+}): ProviderRequest {
+  return {
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a supportive startup pitch coach for high school and college students. Return only one valid JSON object matching the requested shape. Use plain language. Keep every field concise. Valuation estimates are practice-oriented ranges, not financial advice."
+      },
+      { role: "user", content: prompt }
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: maxTokens,
+    ...(provider === "deepseek" ? { thinking: { type: "disabled" as const } } : {})
   };
 }
 

@@ -20,6 +20,7 @@ The journeys were derived from the launch reliability request in this task.
 | Terminal failures cancel siblings and retry backoff | Cancellation test initially observed zero aborted siblings; backoff test initially observed `panelCalls === 2` | Shared abort plus `Promise.allSettled` cancels both active calls and pending backoff |
 | Durable worker does not rerun exhausted report generation | Retry-policy test initially failed to import the missing policy module | `retry-policy.test.ts` proves exhausted reports and invalid artifacts are terminal |
 | Deterministic budget failures do not enter the durable retry loop | Budget test initially received `AiBudgetExceededError` directly | Preflight errors are wrapped as `ReportGenerationExhaustedError` before any provider call |
+| DeepSeek structured sections preserve their output budget for JSON | Preview premium YC QA exhausted the 1,600/2,800-token caps in default thinking mode, returning `length`, empty content, and truncated JSON | DeepSeek requests explicitly disable thinking for bounded JSON; the request contract is covered by a focused test |
 
 ## Validation
 
