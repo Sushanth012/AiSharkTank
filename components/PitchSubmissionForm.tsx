@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileUp, Send, Sparkles, Ticket } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, FileUp, Send, Sparkles, Ticket, Video } from "lucide-react";
 import { MAX_DECK_BYTES, MAX_VIDEO_BYTES, formatBytes } from "@/lib/config";
 import {
   resolvePitchTierAvailability,
@@ -26,6 +26,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
   const router = useRouter();
   const availability = resolvePitchTierAvailability(entitlements, premiumEnabled);
   const [tier, setTier] = useState<"basic" | "premium" | null>(availability.defaultTier);
+  const [reviewMode, setReviewMode] = useState<"investor" | "yc">("investor");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
@@ -197,11 +198,36 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
         <div className="processing-callout" role="status" aria-live="polite">
           <span className="processing-pulse" aria-hidden="true" />
           <div>
-            <strong>Your pitch is with the panel.</strong>
-            <p>We are reviewing your video and any supporting materials, challenging the story, and writing your investor report. You can leave this page; the pitch will stay in your dashboard.</p>
+            <strong>{reviewMode === "yc" ? "Your application is under review." : "Your pitch is with the panel."}</strong>
+            <p>{reviewMode === "yc" ? "We are checking the idea, problem, founder fit, evidence, and biggest rejection risk. You can leave this page; the review will stay in your dashboard." : "We are reviewing your video and any supporting materials, challenging the story, and writing your investor report. You can leave this page; the pitch will stay in your dashboard."}</p>
           </div>
         </div>
       ) : null}
+
+      <fieldset className="review-mode-fieldset">
+        <legend>What are you preparing for?</legend>
+        <p className="review-pass-intro">This changes the questions and language used throughout your report.</p>
+        <div className="review-mode-grid">
+          <label className={`review-mode-card ${reviewMode === "investor" ? "selected" : ""}`}>
+            <input checked={reviewMode === "investor"} disabled={loading} name="reviewMode" onChange={() => setReviewMode("investor")} type="radio" value="investor" />
+            <BriefcaseBusiness size={22} aria-hidden="true" />
+            <span><strong>Investor pitch</strong><small>Business, market, growth, and fundraising</small></span>
+          </label>
+          <label className={`review-mode-card yc ${reviewMode === "yc" ? "selected" : ""}`}>
+            <input checked={reviewMode === "yc"} disabled={loading} name="reviewMode" onChange={() => setReviewMode("yc")} type="radio" value="yc" />
+            <Video size={22} aria-hidden="true" />
+            <span><strong>YC application</strong><small>Video-first clarity, founder fit, and evidence</small></span>
+            <span className="yc-mode-stamp">Video first</span>
+          </label>
+        </div>
+        {reviewMode === "yc" ? (
+          <div className="yc-question-strip" aria-label="YC application review questions">
+            {["Clear idea", "Urgent problem", "Founder fit", "Real evidence", "Rejection risk"].map((item) => (
+              <span key={item}><CheckCircle2 size={14} aria-hidden="true" />{item}</span>
+            ))}
+          </div>
+        ) : null}
+      </fieldset>
 
       <fieldset className="review-pass-fieldset">
         <legend>Choose the room</legend>
@@ -291,8 +317,8 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <input id="businessModel" name="businessModel" required placeholder="Transaction fee" />
         </div>
         <div className="field">
-          <label htmlFor="traction">Traction</label>
-          <input id="traction" name="traction" placeholder="Waitlist, revenue, pilots" />
+          <label htmlFor="traction">{reviewMode === "yc" ? "Evidence people want this" : "Traction"}</label>
+          <input id="traction" name="traction" placeholder={reviewMode === "yc" ? "Users, interviews, revenue, waitlist, or pilots" : "Waitlist, revenue, pilots"} required={reviewMode === "yc"} />
         </div>
         <div className="field">
           <label htmlFor="fundingGoal">Funding goal</label>
@@ -306,11 +332,17 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <label htmlFor="deckNotes">Deck notes <span className="optional-label">Optional</span></label>
           <input id="deckNotes" name="deckNotes" placeholder="Anything else the panel should know" />
         </div>
+        {reviewMode === "yc" ? (
+          <div className="field full yc-founder-field">
+            <label htmlFor="founderFit">Why are you the right founders?</label>
+            <textarea id="founderFit" name="founderFit" required placeholder="What have you experienced, learned, built, or discovered that gives your team an advantage?" />
+          </div>
+        ) : null}
       </div>
 
       <div className="form-intro materials-intro">
         <span>Part two</span>
-        <div><h2>Add your pitch</h2><p>Your video is enough for a YC-style application review. Add a deck only if it helps explain the idea.</p></div>
+        <div><h2>Add your pitch</h2><p>{reviewMode === "yc" ? "Your application video is the main event. A deck, notes, and demo link are optional supporting material." : "Your video is enough for a complete review. Add a deck only if it helps explain the idea."}</p></div>
       </div>
       <div className="form-grid">
         <div className="dropzone">
@@ -325,7 +357,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
           <div>
             <FileUp size={24} aria-hidden="true" />
             <label htmlFor="pitchDeck"><strong>Pitch deck</strong> <span className="optional-label">Optional</span></label>
-            <p className="help">Skip this for a YC-style application video, or add a PDF/PPTX for extra context.</p>
+            <p className="help">{reviewMode === "yc" ? "Optional. YC mode is designed to work from the application video alone." : "Optional. Add a PDF/PPTX only when it gives the panel useful context."}</p>
             <input
               id="pitchDeck"
               accept="application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -338,7 +370,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
 
       <button className="button primary" disabled={loading || !tier} type="submit" aria-busy={loading}>
         <Send size={18} aria-hidden="true" />
-        {phase === "uploading" ? "Uploading your pitch..." : phase === "processing" ? "Panel reviewing..." : "Generate investor report"}
+        {phase === "uploading" ? "Uploading your pitch..." : phase === "processing" ? "Reviewing..." : reviewMode === "yc" ? "Generate YC application review" : "Generate investor report"}
       </button>
     </form>
   );
@@ -346,6 +378,7 @@ export function PitchSubmissionForm({ entitlements, premiumEnabled }: PitchSubmi
 
 function profileFromForm(formData: FormData): StartupProfile {
   return {
+    reviewMode: (stringFromForm(formData, "reviewMode") || "investor") as StartupProfile["reviewMode"],
     startupName: stringFromForm(formData, "startupName"),
     founderName: stringFromForm(formData, "founderName"),
     industry: stringFromForm(formData, "industry"),
@@ -354,6 +387,7 @@ function profileFromForm(formData: FormData): StartupProfile {
     targetCustomer: stringFromForm(formData, "targetCustomer"),
     businessModel: stringFromForm(formData, "businessModel"),
     traction: stringFromForm(formData, "traction"),
+    founderFit: stringFromForm(formData, "founderFit"),
     fundingGoal: stringFromForm(formData, "fundingGoal"),
     demoLink: stringFromForm(formData, "demoLink"),
     deckNotes: stringFromForm(formData, "deckNotes")

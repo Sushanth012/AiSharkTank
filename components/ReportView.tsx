@@ -1,13 +1,15 @@
 import {
   ArrowUpRight,
   CalendarClock,
+  CheckCircle2,
   CircleDollarSign,
   MessageCircleQuestion,
   Sparkles
 } from "lucide-react";
-import type { InvestorDecision, InvestorReview, PitchReport } from "@/lib/types";
+import type { InvestorDecision, InvestorReview, PitchReport, YcEvaluation } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ReportActions } from "@/components/ReportActions";
+import { FeedbackHelp } from "@/components/FeedbackHelp";
 
 const sharkRoster = [
   { name: "Mark Cuban", title: "Tech & Scale", lens: "Can this become huge?", accent: "gold" },
@@ -29,6 +31,69 @@ function scoreLabel(score: number) {
   return "Needs work";
 }
 
+function simplifyKnownTerms(comment: string) {
+  const replacements: Array<[RegExp, string]> = [
+    [/enterprise sales cycles/gi, "the long process of selling to large companies"],
+    [/burning cash/gi, "spending money before earning enough back"],
+    [/siloed company data/gi, "company information stored in separate systems"],
+    [/deployments/gi, "customer setups"],
+    [/repeatable sales process/gi, "clear sales steps that work more than once"],
+    [/marketplace liquidity/gi, "having enough active buyers and sellers"],
+    [/customer acquisition/gi, "finding and winning new customers"],
+    [/unit economics/gi, "the money earned and spent on each customer or sale"],
+    [/\bmoat\b/gi, "protection from competitors"],
+    [/\bGMV\b/g, "the total value sold"],
+    [/take rate/gi, "the percentage of each sale the company keeps"]
+  ];
+  const simplified = replacements.reduce(
+    (result, [term, meaning]) => result.replace(term, meaning),
+    comment
+  );
+
+  return simplified === comment
+    ? "This could make the startup harder, slower, or more expensive to grow. Test it with a small real-world experiment before making a bigger bet."
+    : simplified;
+}
+
+const ycCriteria = [
+  ["ideaClarity", "Is the idea immediately understandable?"],
+  ["problemUrgency", "Is the problem real and urgent?"],
+  ["founderFit", "Why are these founders right for it?"],
+  ["evidence", "Is there evidence people want it?"],
+  ["rejectionRisk", "What would make YC reject the application?"]
+] as const;
+
+export function YcEvaluationSection({ evaluation }: { evaluation: YcEvaluation }) {
+  return (
+    <section className="yc-evaluation" aria-labelledby="yc-evaluation-title">
+      <div className="yc-evaluation-heading">
+        <div>
+          <p className="eyebrow">Application mode</p>
+          <h2 id="yc-evaluation-title">Five questions between you and submit.</h2>
+        </div>
+        <div className="yc-verdict-stamp">
+          <span>Verdict</span>
+          <strong>{evaluation.verdict}</strong>
+        </div>
+      </div>
+      <div className="yc-criteria-grid">
+        {ycCriteria.map(([key, question], index) => {
+          const criterion = evaluation[key];
+          return (
+            <article className="yc-criterion" key={key}>
+              <div className="yc-criterion-number">0{index + 1}</div>
+              <div className="yc-criterion-score"><strong>{criterion.score}</strong><span>/100</span></div>
+              <h3>{question}</h3>
+              <p>{criterion.answer}</p>
+              <FeedbackHelp explanation={criterion.simpleExplanation} nextStep={criterion.nextStep} />
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function displaySharks(panel: InvestorReview[]) {
   return panel.map((review, index) => ({
     ...review,
@@ -48,6 +113,7 @@ function SharkPortrait({ index, name, large = false }: { index: number; name: st
 }
 
 export function ReportView({ report }: { report: PitchReport }) {
+  const isYcMode = report.reviewMode === "yc" && report.ycEvaluation;
   const sharks = displaySharks(report.investorPanel);
   const investVotes = report.investorPanel.filter((investor) => investor.decision === "Invest").length;
   const conditionVotes = report.investorPanel.filter(
@@ -60,11 +126,11 @@ export function ReportView({ report }: { report: PitchReport }) {
         <section className="panel report-hero">
           <div className="report-hero-top">
             <div>
-              <p className="eyebrow">The big answer</p>
+              <p className="eyebrow">{isYcMode ? "YC application readout" : "The big answer"}</p>
               <h1>{report.startupName}</h1>
               <div className="decision-translation">
-                <StatusBadge decision={report.recommendation} />
-                <p>{decisionExplanation(report.recommendation)}</p>
+                {isYcMode ? <span className="yc-hero-verdict">{report.ycEvaluation!.verdict}</span> : <StatusBadge decision={report.recommendation} />}
+                <p>{isYcMode ? "A practice read on whether your video makes a convincing, easy-to-follow case." : decisionExplanation(report.recommendation)}</p>
               </div>
             </div>
             <div className="report-score">
@@ -73,18 +139,20 @@ export function ReportView({ report }: { report: PitchReport }) {
             </div>
           </div>
           <p className="report-summary">{report.executiveSummary}</p>
-          <div className="panel-vote-strip">
+          <div className={`panel-vote-strip${isYcMode ? " yc" : ""}`}>
             <div>
-              <span>How the sharks voted</span>
-              <strong>{investVotes} yes · {conditionVotes} yes, with conditions</strong>
+              <span>{isYcMode ? "What this review checked" : "How the sharks voted"}</span>
+              <strong>{isYcMode ? "Clarity · urgency · founder fit · evidence · rejection risk" : `${investVotes} yes · ${conditionVotes} yes, with conditions`}</strong>
             </div>
-            <div className="vote-avatars" aria-label="Five AI-simulated investor perspectives">
+            {!isYcMode ? <div className="vote-avatars" aria-label="Five AI-simulated investor perspectives">
               {sharks.map((shark) => (
                 <SharkPortrait index={shark.avatarIndex} key={shark.name} name={shark.name} />
               ))}
-            </div>
+            </div> : <CheckCircle2 size={34} aria-hidden="true" />}
           </div>
         </section>
+
+        {isYcMode ? <YcEvaluationSection evaluation={report.ycEvaluation!} /> : null}
 
         <section className="card scorecard-card">
           <div className="plain-section-heading">
@@ -122,8 +190,19 @@ export function ReportView({ report }: { report: PitchReport }) {
             <p className="eyebrow">Plan for this</p>
             <h2>Problems to solve before they grow</h2>
             <p>These are things that could slow down the startup. Use them as a to-do list, not as a reason to give up.</p>
-            <ul className="list">
-              {report.risks.map((item) => <li key={item}>{item}</li>)}
+            <ul className="list guided-risk-list">
+              {report.risks.map((item, index) => {
+                const guidance = report.riskGuidance?.[index];
+                return (
+                  <li key={item}>
+                    <span>{item}</span>
+                    <FeedbackHelp
+                      explanation={guidance?.simpleExplanation ?? simplifyKnownTerms(item)}
+                      nextStep={guidance?.nextStep ?? report.nextMilestones[index] ?? "Rewrite this part with one specific fact, number, or customer example."}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           </section>
         </div>
@@ -131,9 +210,9 @@ export function ReportView({ report }: { report: PitchReport }) {
         <section className="investor-panel-section">
           <div className="section-title panel-section-title">
             <div>
-              <p className="eyebrow">Meet your five sharks</p>
-              <h2>Five people. Five different questions.</h2>
-              <p>Five well-known investing styles, translated into clear feedback you can practice with.</p>
+              <p className="eyebrow">{isYcMode ? "Five application reviewers" : "Meet your five sharks"}</p>
+              <h2>{isYcMode ? "Pressure-test the answers behind your video." : "Five people. Five different questions."}</h2>
+              <p>{isYcMode ? "The panel still challenges your application from five different business angles, but the main verdict above is based on YC application readiness." : "Five well-known investing styles, translated into clear feedback you can practice with."}</p>
               <div className="simulation-disclaimer">
                 Educational AI simulation. The portraits and feedback are AI-generated and inspired by publicly known investing styles. These investors did not review or endorse this report. PitchTank is not affiliated with ABC or <em>Shark Tank</em>.
               </div>
@@ -162,6 +241,7 @@ export function ReportView({ report }: { report: PitchReport }) {
                   <span>Their take</span>
                   <p>{shark.thesis}</p>
                 </div>
+                <FeedbackHelp explanation={shark.plainLanguage ?? simplifyKnownTerms(shark.thesis)} nextStep={shark.signatureAdvice} />
                 <div className="signature-advice">
                   <Sparkles size={18} aria-hidden="true" />
                   <div><strong>Do this next</strong><p>{shark.signatureAdvice}</p></div>
@@ -178,7 +258,7 @@ export function ReportView({ report }: { report: PitchReport }) {
         </section>
 
         <section className="card final-answer-card">
-          <div className="memo-heading"><CircleDollarSign size={22} aria-hidden="true" /><h2>The bottom line</h2></div>
+          <div className="memo-heading">{isYcMode ? <CheckCircle2 size={22} aria-hidden="true" /> : <CircleDollarSign size={22} aria-hidden="true" />}<h2>{isYcMode ? "Application verdict" : "The bottom line"}</h2></div>
           <p>{report.finalMemo}</p>
         </section>
       </div>
@@ -191,7 +271,7 @@ export function ReportView({ report }: { report: PitchReport }) {
             {report.nextMilestones.map((item) => <li key={item}>{item}</li>)}
           </ol>
         </section>
-        <section className="card">
+        {!isYcMode ? <section className="card">
           <p className="eyebrow">Practice estimate</p>
           <h2>Possible valuation</h2>
           <p className="valuation-number">{report.valuation.range}</p>
@@ -205,7 +285,7 @@ export function ReportView({ report }: { report: PitchReport }) {
               {report.valuation.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
             </ul>
           </details>
-        </section>
+        </section> : null}
         <section className="card">
           <p className="eyebrow">Watch it back</p>
           <h2>Moment-by-moment coaching</h2>

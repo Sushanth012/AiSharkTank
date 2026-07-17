@@ -1,7 +1,9 @@
 export type SubmissionStatus = "queued" | "processing" | "complete" | "failed";
 export type InvestorDecision = "Invest" | "Pass" | "Invest with Conditions";
+export type ReviewMode = "investor" | "yc";
 
 export type StartupProfile = {
+  reviewMode?: ReviewMode;
   startupName: string;
   founderName: string;
   industry: string;
@@ -10,6 +12,7 @@ export type StartupProfile = {
   targetCustomer: string;
   businessModel: string;
   traction: string;
+  founderFit?: string;
   fundingGoal: string;
   demoLink?: string;
   deckNotes?: string;
@@ -31,8 +34,28 @@ export type InvestorReview = {
   decision: InvestorDecision;
   score: number;
   thesis: string;
+  plainLanguage?: string;
   signatureAdvice: string;
   questions: string[];
+};
+
+export type FeedbackGuidance = {
+  simpleExplanation: string;
+  nextStep: string;
+};
+
+export type YcCriterion = FeedbackGuidance & {
+  score: number;
+  answer: string;
+};
+
+export type YcEvaluation = {
+  verdict: "Ready to submit" | "Revise before submitting" | "Major rewrite needed";
+  ideaClarity: YcCriterion;
+  problemUrgency: YcCriterion;
+  founderFit: YcCriterion;
+  evidence: YcCriterion;
+  rejectionRisk: YcCriterion;
 };
 
 export type TimelineMoment = {
@@ -57,9 +80,12 @@ export type PitchReport = {
   deliveryScore: number;
   recommendation: InvestorDecision;
   executiveSummary: string;
+  reviewMode?: ReviewMode;
+  ycEvaluation?: YcEvaluation | null;
   scores: Score[];
   strengths: string[];
   risks: string[];
+  riskGuidance?: FeedbackGuidance[];
   nextMilestones: string[];
   investorPanel: InvestorReview[];
   timeline: TimelineMoment[];
