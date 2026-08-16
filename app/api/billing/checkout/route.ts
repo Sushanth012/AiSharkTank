@@ -25,7 +25,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in before purchasing credits." }, { status: 401 });
   }
 
-  const parsed = offerIdSchema.safeParse((await request.json()).offerId);
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    body = null;
+  }
+
+  const parsed = offerIdSchema.safeParse(
+    typeof body === "object" && body !== null && "offerId" in body ? body.offerId : undefined
+  );
   if (!parsed.success) {
     return NextResponse.json({ error: "Unknown billing offer." }, { status: 400 });
   }
