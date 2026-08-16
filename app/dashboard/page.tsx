@@ -112,7 +112,7 @@ export default async function DashboardPage() {
                       {submission.recommendation ? (
                         <StatusBadge decision={submission.recommendation} />
                       ) : null}
-                      {submission.overallScore ? <span>Score {submission.overallScore}</span> : null}
+                      {submission.overallScore !== undefined ? <span>Score {submission.overallScore}</span> : null}
                     </div>
                   </div>
                   {submission.reportId ? (
