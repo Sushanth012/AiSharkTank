@@ -30,10 +30,12 @@ export function ReportActions({ reportId }: { reportId: string }) {
         <Download size={17} aria-hidden="true" />
         Save as PDF
       </button>
-      <button className="button ghost" disabled={deleting} onClick={deleteReport} type="button">
-        <Trash2 size={17} aria-hidden="true" />
-        {deleting ? "Deleting..." : "Delete report"}
-      </button>
+      {reportId !== "demo-report" ? (
+        <button className="button ghost" disabled={deleting} onClick={deleteReport} type="button">
+          <Trash2 size={17} aria-hidden="true" />
+          {deleting ? "Deleting..." : "Delete report"}
+        </button>
+      ) : null}
     </div>
   );
 }
