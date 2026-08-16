@@ -45,6 +45,29 @@ describe("founder dashboard entitlements", () => {
     expect(visibleText).toContain("5");
     expect(visibleText).toContain("Premium pitches");
   });
+
+  it("shows a zero report score in pitch history", async () => {
+    const submissionsQuery = chain({
+      data: [{
+        id: "submission-1",
+        startup_name: "Zero Inc",
+        created_at: "2026-08-15T00:00:00.000Z",
+        status: "complete",
+        reports: [{ id: "report-1", content: { overallScore: 0 } }]
+      }],
+      error: null
+    }, "order");
+    const entitlementQuery = chain({ data: { premium_credits: 0 }, error: null }, "maybeSingle");
+
+    mocks.createSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      from: (table: string) => table === "submissions" ? submissionsQuery : entitlementQuery
+    });
+
+    const page = await DashboardPage();
+
+    expect(collectText(page).join("")).toContain("Score 0");
+  });
 });
 
 function chain(result: unknown, terminal: "order" | "maybeSingle") {
