@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, LogOut, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { BillingPortalButton } from "@/components/BillingButtons";
 import { isAdminUserId } from "@/lib/admin";
+import { billingEnabled } from "@/lib/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,7 @@ export default async function AccountPage() {
 
           <aside className="card account-card account-actions">
             <span className="sidebar-label">Account controls</span>
+            <BillingPortalButton disabled={!billingEnabled} />
             {isAdmin ? (
               <Link className="button secondary full" href="/admin">
                 <ShieldCheck size={17} aria-hidden="true" /> Admin panel
